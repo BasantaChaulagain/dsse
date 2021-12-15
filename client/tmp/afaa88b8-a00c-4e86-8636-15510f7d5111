@@ -1,0 +1,2 @@
+type=SYSCALL msg=audit(1471074506.946:35559675): arch=c000003e syscall=16 success=yes exit=0 a0=7 a1=541b a2=7fc786f02cec a3=19b60fee items=0 ppid=1 pid=1236 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=4294967295 comm="gmain" exe="/usr/lib/accountsservice/accounts-daemon" key=(null)
+type=UNKNOWN[1327] msg=audit(1471074506.946:35559675): proctitle="/usr/lib/accountsservice/accounts-daemon"
