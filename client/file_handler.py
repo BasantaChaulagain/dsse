@@ -57,4 +57,4 @@ class FileHandler():
 
 
 f = FileHandler(FILE_)
-f.fragment()
+# f.fragment()
