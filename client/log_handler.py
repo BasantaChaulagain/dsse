@@ -14,6 +14,7 @@ segment = "2b8797c5-cbe6-42b8-991a-8ac85a562498"
 
 timestamp_id_pattern = [r"\d{10}\.\d{3}\:\d+", 
                 r"\d{4}(\/|\-|\:)\d{2}(\/|\-|\:)\d{2}(T|\s+|\:)\d{0,24}\:\d{0,59}\:\d{0,59}"]
+
 # this captures everything in the form key=value where values can have space in between (like filename with space.)
 kv_pattern = re.compile(r'(\w+\=(?:\"|\().*?(?:\"|\))|\w+\=\S+)')
 
@@ -32,9 +33,12 @@ class LogHandler:
         self.segment = segment
         self.lt_string = ""             # id,lt_string,segment
         self.variable = []
+        self.log_type_id = ""
         self.encoded_message = ""       # timestamp,log_type_id,variable values
         self.vdict = {}
         # self.vdict = self.get_vdict_from_file()
+        self.ltdict = {}
+        # self.vdict = self.get_ltdict_from_file()
 
     def extract_timestamp(self):
         for ts_patt in timestamp_id_pattern:
@@ -42,6 +46,26 @@ class LogHandler:
             match = ts_patt.search(self.log)
             if match:
                 return(match.group())
+
+    def get_schema_id(self, var):
+        for key, value in variable_schema.items():
+            match = re.fullmatch(value, var)
+            if match:
+                return(key)
+
+    def get_variable_id(self, var, dict):
+        for key, value in dict.items():
+            if value == var:
+                return key
+        return None
+    
+    def get_log_type_id(self, ltstring):
+        for key, value in self.ltdict.items():
+            print(value, '\n',ltstring)
+            if value == ltstring:
+                self.log_type_id = key
+            else:
+                self.log_type_id = None
 
     # code to find the variables and log_type
     def parse_log(self):
@@ -51,52 +75,61 @@ class LogHandler:
                 key_value = each.split('=')
                 # if key is msg field, take off the timestamp:id from the variable. This is specific to linux audit log.
                 if key_value[0] == 'msg':
-                    self.lt_string = self.lt_string+key_value[0]+'='+'\x14 '+': '
-                    value = key_value[1].split('(')[0]
-                    if value not in self.variable:
-                        self.variable.append(value)
+                    value = key_value[1].split('(')[0]                   
                 else:
-                    self.lt_string = self.lt_string+key_value[0]+'='+'\x14 '
-                    if key_value[1] not in self.variable:
-                        self.variable.append(key_value[1])
-        print(self.lt_string)
-        print(self.variable)
+                    value = key_value[1]
 
-    # code to encode the message using ltdict and vdict
-    def encode(self):
-        self.extract_timestamp()
-        self.parse_log()
-        self.write_to_vdict()
-        self.write_to_ltdict()
-
-    def get_schema_type(self, var):
-        for key, value in variable_schema.items():
-            match = re.fullmatch(value, var)
-            if match:
-                return(key)
-
-    def write_to_ltdict(self):
-        # id,lt_string,segment_id
-        # need to change the lt_string to include variable schema id.
-        pass
-
+                # if value not in self.variable:
+                self.variable.append(value)
+                schema_id = self.get_schema_id(value) 
+                self.lt_string = self.lt_string+key_value[0]+'='+'\x11'+schema_id+' '
+        
     def write_to_vdict(self):
-        # id,schema,segment_id          # id,variable_value,segment_id
-        for var in self.variable:
-            schema_id = self.get_schema_type(var)
+        variable_unique = list(set(self.variable))
+        for var in variable_unique:
+            schema_id = self.get_schema_id(var)
             vdict_id = self.vdict.get(schema_id)
             if not vdict_id:
                 self.vdict[schema_id] = {}
             vdict_id = self.vdict.get(schema_id)
-            # print(vdict_id, type(vdict_id))
-            # print(vdict_id)
             size_vdict_id = len(vdict_id)
-            self.vdict[schema_id][str(size_vdict_id)] = var
+            # if var not in any values in vdict_id, add to the dictionary
+            var_id = self.get_variable_id(var, vdict_id)
+            if not var_id:
+                self.vdict[schema_id][str(size_vdict_id)] = var
         
+    def write_to_ltdict(self):
+        self.get_log_type_id(self.lt_string)
+        # do nothing if log_type_id is present, else add.
+        if not self.log_type_id:
+            size_ltdict = len(self.ltdict)
+            self.ltdict[str(size_ltdict)] = self.lt_string
+        self.get_log_type_id(self.lt_string)
+        
+    def get_variable_ids(self):
+        # get each schema_type from lt_string and lookup each variables in variable list with the the vdict of particular schema type.
+        variable_ids = ""
+        pattern = r'(?:\x11)(\d+)'
+        match = re.findall(pattern, self.lt_string)
+        if match and len(match)==len(self.variable):
+            for schema_id, variable in zip (match, self.variable):
+                var_dict = self.vdict[schema_id]
+                var_id = self.get_variable_id(variable, var_dict)
+                variable_ids = variable_ids + var_id +","
+        variable_ids = variable_ids.rstrip(',')
+        return variable_ids
+
+    # code to encode the message using ltdict and vdict
+    def encode(self):
+        ts = self.extract_timestamp()
+        self.parse_log()
+        self.write_to_vdict()
+        self.write_to_ltdict()
+        variable_ids = self.get_variable_ids()
+        self.encoded_message = ts + "," + self.log_type_id + "," + variable_ids
+        print(self.ltdict)
         print(self.vdict)
-
-
-
+        print(self.encoded_message)
 
 
 i = LogHandler(log)
