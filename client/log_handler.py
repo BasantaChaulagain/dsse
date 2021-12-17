@@ -17,6 +17,15 @@ timestamp_id_pattern = [r"\d{10}\.\d{3}\:\d+",
 # this captures everything in the form key=value where values can have space in between (like filename with space.)
 kv_pattern = re.compile(r'(\w+\=(?:\"|\().*?(?:\"|\))|\w+\=\S+)')
 
+# more generic regex should be written at the end.
+variable_schema = { '0': r'\"[\/\w\-\_]+\"',
+                    '1': r'\([\w]+\)', 
+                    '2': r'[A-Za-z]+', 
+                    '3': r'-?\d+', 
+                    '4': r'[\d\w]+'
+                   }
+
+
 class LogHandler:
     def __init__(self, log):
         self.log = log
@@ -24,6 +33,8 @@ class LogHandler:
         self.lt_string = ""             # id,lt_string,segment
         self.variable = []
         self.encoded_message = ""       # timestamp,log_type_id,variable values
+        self.vdict = {}
+        # self.vdict = self.get_vdict_from_file()
 
     def extract_timestamp(self):
         for ts_patt in timestamp_id_pattern:
@@ -40,7 +51,7 @@ class LogHandler:
                 key_value = each.split('=')
                 # if key is msg field, take off the timestamp:id from the variable. This is specific to linux audit log.
                 if key_value[0] == 'msg':
-                    self.lt_string = self.lt_string+key_value[0]+'='+'\x14 '+':'
+                    self.lt_string = self.lt_string+key_value[0]+'='+'\x14 '+': '
                     value = key_value[1].split('(')[0]
                     if value not in self.variable:
                         self.variable.append(value)
@@ -58,14 +69,32 @@ class LogHandler:
         self.write_to_vdict()
         self.write_to_ltdict()
 
+    def get_schema_type(self, var):
+        for key, value in variable_schema.items():
+            match = re.fullmatch(value, var)
+            if match:
+                return(key)
+
     def write_to_ltdict(self):
         # id,lt_string,segment_id
         # need to change the lt_string to include variable schema id.
         pass
 
     def write_to_vdict(self):
-         # id,schema,segment_id          # id,variable_value,segment_id
-        pass
+        # id,schema,segment_id          # id,variable_value,segment_id
+        for var in self.variable:
+            schema_id = self.get_schema_type(var)
+            vdict_id = self.vdict.get(schema_id)
+            if not vdict_id:
+                self.vdict[schema_id] = {}
+            vdict_id = self.vdict.get(schema_id)
+            # print(vdict_id, type(vdict_id))
+            # print(vdict_id)
+            size_vdict_id = len(vdict_id)
+            self.vdict[schema_id][str(size_vdict_id)] = var
+        
+        print(self.vdict)
+
 
 
 
