@@ -7,10 +7,15 @@
 #
 ############
 
+import json
 import re
 
-log = '''type=SYSCALL msg=audit(1471074506.946:35559672): arch=c000003e syscall=0 success=no exit=-11 a0=4 a1=7fc786f02cd0 a2=10 a3=19078622 items=0 ppid=1 pid=1236 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=4294967295 comm="gmain" exe="/usr/lib/accountsservice/accounts-daemon" key=(null)'''
+log1 = '''type=SYSCALL msg=audit(1471074506.946:35559672): arch=c000003e syscall=0 success=no exit=-11 a0=4 a1=7fc786f02cd0 a2=10 a3=19078622 items=0 ppid=1 pid=1236 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=4294967295 comm="gmain" exe="/usr/lib/accountsservice/accounts-daemon" key=(null)'''
+log2 = '''type=UNKNOWN[1327] msg=audit(1471074506.934:35559671): proctitle="/usr/lib/accountsservice/accounts-daemon"'''
+log3 = '''type=DAEMON_START msg=audit(1471074506.938:4196): auditd start, ver=2.3.2 format=raw kernel=4.2.0-27-generic auid=1003 pid=49013 subj=unconfined  res=success'''
+
 segment = "2b8797c5-cbe6-42b8-991a-8ac85a562498"
+lookup_table = []
 
 timestamp_id_pattern = [r"\d{10}\.\d{3}\:\d+", 
                 r"\d{4}(\/|\-|\:)\d{2}(\/|\-|\:)\d{2}(T|\s+|\:)\d{0,24}\:\d{0,59}\:\d{0,59}"]
@@ -23,22 +28,29 @@ variable_schema = { '0': r'\"[\/\w\-\_]+\"',
                     '1': r'\([\w]+\)', 
                     '2': r'[A-Za-z]+', 
                     '3': r'-?\d+', 
-                    '4': r'[\d\w]+'
+                    '4': r'[\d\w]+',
+                    '5': r'[A-Za-z]+\[\d+\]',
+                    '6': r'.*?'
                    }
 
 
 class LogHandler:
-    def __init__(self, log):
+    def __init__(self, log, segment, lookup_table):
         self.log = log
         self.segment = segment
         self.lt_string = ""             # id,lt_string,segment
         self.variable = []
         self.log_type_id = ""
         self.encoded_message = ""       # timestamp,log_type_id,variable values
-        self.vdict = {}
-        # self.vdict = self.get_vdict_from_file()
-        self.ltdict = {}
-        # self.vdict = self.get_ltdict_from_file()
+        if len(lookup_table) != 0:
+            self.vdict = lookup_table[1]
+            self.ltdict = lookup_table[0]
+        else:
+            self.vdict = {}
+            self.ltdict = {}
+
+    def get_updated_lookup_table(self):
+        return [self.ltdict, self.vdict]
 
     def extract_timestamp(self):
         for ts_patt in timestamp_id_pattern:
@@ -55,21 +67,19 @@ class LogHandler:
 
     def get_variable_id(self, var, dict):
         for key, value in dict.items():
-            if value == var:
+            if value[0] == var:
                 return key
         return None
     
     def get_log_type_id(self, ltstring):
         for key, value in self.ltdict.items():
-            print(value, '\n',ltstring)
-            if value == ltstring:
-                self.log_type_id = key
-            else:
-                self.log_type_id = None
+            if value[0] == ltstring:
+                return(key)
+        return None
 
     # code to find the variables and log_type
     def parse_log(self):
-        match = kv_pattern.findall(log)
+        match = kv_pattern.findall(self.log)
         if match:
             for each in match:
                 key_value = each.split('=')
@@ -93,18 +103,26 @@ class LogHandler:
                 self.vdict[schema_id] = {}
             vdict_id = self.vdict.get(schema_id)
             size_vdict_id = len(vdict_id)
-            # if var not in any values in vdict_id, add to the dictionary
+            # if var not in any values in vdict_id, add to the dictionary, else update segment id.
             var_id = self.get_variable_id(var, vdict_id)
             if not var_id:
-                self.vdict[schema_id][str(size_vdict_id)] = var
+                self.vdict[schema_id][str(size_vdict_id)] = [var, [self.segment]]
+            else:
+                segment_list = self.vdict[schema_id][var_id][1]
+                if self.segment not in segment_list:
+                    segment_list.append(self.segment)
+
         
     def write_to_ltdict(self):
-        self.get_log_type_id(self.lt_string)
-        # do nothing if log_type_id is present, else add.
-        if not self.log_type_id:
+        logtype_id = self.get_log_type_id(self.lt_string)
+        # if log_type_id is not present, add the ltstring, else just update the segment id.
+        if not logtype_id:
             size_ltdict = len(self.ltdict)
-            self.ltdict[str(size_ltdict)] = self.lt_string
-        self.get_log_type_id(self.lt_string)
+            self.ltdict[str(size_ltdict)] = [self.lt_string, [self.segment]]
+        else:
+            segment_list = self.ltdict[logtype_id][1]
+            if self.segment not in segment_list:
+                segment_list.append(self.segment)
         
     def get_variable_ids(self):
         # get each schema_type from lt_string and lookup each variables in variable list with the the vdict of particular schema type.
@@ -126,11 +144,10 @@ class LogHandler:
         self.write_to_vdict()
         self.write_to_ltdict()
         variable_ids = self.get_variable_ids()
-        self.encoded_message = ts + "," + self.log_type_id + "," + variable_ids
-        print(self.ltdict)
-        print(self.vdict)
+        logtype_id = self.get_log_type_id(self.lt_string)
+        self.encoded_message = ts + "," + logtype_id + "," + variable_ids
         print(self.encoded_message)
 
 
-i = LogHandler(log)
-i.encode()
+# i = LogHandler(log2, segment, lookup_table)
+# i.encode()
