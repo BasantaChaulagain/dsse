@@ -27,7 +27,7 @@
 #
 #  sse_client.py
 #
-#  Serves as SSE implementation for mail client. The routines 
+#  Serves as SSE implementation for client. The routines 
 #  for SSE are invoked by the client module via the API.
 #
 ############
