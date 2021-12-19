@@ -45,7 +45,7 @@ class FileHandler():
         new_file = open(new_file_name, 'a+')
         return new_file
 
-    def fragment(self):
+    def split_file(self):
         segment = self.get_new_file()
         line_count = 0
         self.db.execute('''INSERT INTO file_segment (file_id, segment_id) VALUES (?, ?)''',(self.file_to_handle, segment.name))
@@ -65,15 +65,56 @@ class FileHandler():
                     line_count = 1
         segment.close()
 
+    def get_lookup_table(self):
+        if not os.path.exists('ltdict.json'):
+            with open('ltdict.json', 'w+') as f:
+                ltdict = {}
+                json.dump(ltdict, f)   
+        if not os.path.exists('vdict.json'):
+            with open('vdict.json', 'w+') as f:
+                vdict = {}
+                json.dump(vdict, f)
+        else:
+            with open('ltdict.json', 'r') as f:
+                ltdict = json.load(f)
+            with open('vdict.json', 'r') as f:
+                vdict = json.load(f)
+        lookup_table = [ltdict, vdict]
+        return lookup_table
+    
+    def set_lookup_table(self, lookup_table):
+        with open('ltdict.json', 'w+') as f:
+            ltdict = lookup_table[0]
+            json.dump(ltdict, f)   
+        with open('vdict.json', 'w+') as f:
+            vdict = lookup_table[1]
+            json.dump(vdict, f)
 
-# f = FileHandler(FILE_)
-# f.fragment()
+    def write_to_file(self, line, segment):
+        with open(segment, 'a+') as f:
+            f.writelines(line)
+            f.writelines('\n')
 
-i=0
-for log in logs:
-    # print(log)
-    l = LogHandler(log, segment[i], lookup_table)
-    l.encode()
-    lookup_table = l.get_updated_lookup_table()
-    i+=1
-print(lookup_table)
+    def encode_logs(self, segment):
+        with open(segment, 'r') as seg:
+            for log in seg:
+                lookup_table = self.get_lookup_table()
+                segment_id=segment.split('/')[1]        # get filename only
+                l = LogHandler(lookup_table)
+                encoded_message = l.encode(log, segment_id)
+                self.write_to_file(encoded_message, segment+'_en')
+                lookup_table = l.get_updated_lookup_table()
+                self.set_lookup_table(lookup_table)
+        
+    def decode_logs(self, segment):
+        with open(segment, 'r') as seg:
+            for line in seg:
+                lookup_table = self.get_lookup_table()
+                l = LogHandler(lookup_table)
+                log = l.decode(line.rstrip('\n'))
+                self.write_to_file(log, segment+'_de')
+
+f = FileHandler(FILE_)
+# f.split_file()
+# f.encode_logs('tmp/jGUHKTFim7HpDoNqRUZ6f3')
+f.decode_logs('tmp/jGUHKTFim7HpDoNqRUZ6f3_en')
