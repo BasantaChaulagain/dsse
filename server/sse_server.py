@@ -32,8 +32,9 @@
 ############
 
 import os
+import inspect
+import sys
 
-import importlib
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
@@ -42,36 +43,26 @@ import dbm
 import string
 from flask import Flask
 from flask import request
-from flask import render_template
 from flask import jsonify
 from pathlib import Path
-from werkzeug.utils import secure_filename
 
-script_dir = Path(__file__).parent
-jmap_path = str( script_dir.joinpath('..', 'jmap', 'jmap.py') )
-loader = importlib.machinery.SourceFileLoader('jmap', jmap_path)
-spec = importlib.util.spec_from_loader('jmap', loader)
-jmap = importlib.util.module_from_spec(spec)
-loader.exec_module(jmap)
+current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+from jmap import jmap
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'enc'
-app.config['ALLOWED_EXTENSIONS'] = set(['txt', 'pdf', 'png', 'jpg', 
-                                        'jpeg', 'gif'])
+
 DEBUG = 1
 
 # CMD list
 UPDATE = "update"
 SEARCH = "search"
-ADD_FILE = "addmail"
+ADD_FILE = "add"
 SEARCH_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
 ADD_FILE_METHOD = "putEncryptedMessage"
-
-SRCH_BODY = 0
-SRCH_HEADERS = 1
-
-HEADERS = ["from", "sent", "date", "to", "subject", "cc"]
 
 DELIMETER = "++?"
 
@@ -81,8 +72,8 @@ DELIMETER = "++?"
 #
 ########
 
-@app.route('/addmail', methods=['POST'])
-def add_mail():
+@app.route('/add', methods=['POST'])
+def add_segment():
 
     # Return error if request is not properly formatted
     if not request.json:
@@ -108,14 +99,6 @@ def add_mail():
     return jsonify(results="GOOD ADD FILE")
 
 
-# TODO: Use this to request mail? Currently just sending them back after
-# SEARCH routine
-@app.route('/getmail', methods=['GET'])
-def get_mail():
-    pass
-    # return "Hello, world"
-
-
 @app.route('/update', methods=['POST'])
 def update():
     # Return error if request is not properly formatted
@@ -129,7 +112,7 @@ def update():
         return jsonify(results='Error: Wrong Method for url')
 
     # Open local ecypted index and get length
-    index = dbm.open("index", "c")
+    index = dbm.open("indexes/"+str(id_num)+"_index", "c")
     index_len = get_index_len(index)
 
     # Iterate through update list, replacing existing entries in local
@@ -173,8 +156,6 @@ def update():
 @app.route('/search', methods=['POST'])
 def search():
 
-    TYPE = SRCH_BODY
-
     if not request.json:
         return jsonify(results='Error: not json')
 
@@ -183,23 +164,19 @@ def search():
     if method != SEARCH_METHOD:
         return jsonify(results='Error: Wrong Method for url')
 
-    # FIXME: This is a crap way to check for headers, and subsequently
-    # searching for them. Need to fix this, as well as following FIXME's
-    # in this method.
-    if query[0] in HEADERS:
-        header = query[0]
-        TYPE = SRCH_HEADERS
-
-    index = dbm.open("index", "r")
-    count = get_index_len(index)
-
     # query is a list of search terms, so each 'i' is a word/query
     # each word/query is a tuple containing k1, a hash of the search term,
     # and k2 for decrypting the document name(s).  Use k1 to match the key 
     # and use k2 to decrypt each value (mail ID or name) that is associated
     # with that key.
     M = []
+    cnt=0
     for i in query:
+        index = dbm.open("indexes/"+id_num[cnt]+"_index", "r")
+        print("searching in file: ", "indexes/"+id_num[cnt]+"_index")
+        count = get_index_len(index)
+        cnt += 1
+
         # Drop unicode
         k1 = i[0].encode('latin1', 'ignore')
         k2 = i[1].encode('latin1', 'ignore')
@@ -212,7 +189,7 @@ def search():
                 c = i[2].encode('latin1', 'ignore')
         except:
             pass
-        if (DEBUG > 1): print("k1: %s\nk2: %s\n" % (k1, k2))
+        if (DEBUG > 0): print("k1: %s\nk2: %s\nc: %s" % (k1, k2, c))
 
         # D [] is a list of mail IDs found for a term.
         # Its leftover 'legacy' code. Used to be you had to iterate through
@@ -246,6 +223,7 @@ def search():
         for d in D:
             # Decrypt d, getting list of docs that word is in
             m = dec(k2, d).decode()
+            print(m, type(m))
             m_str = ''
             for x in m:
                 if x in string.printable:
@@ -253,7 +231,7 @@ def search():
             for msg in m_str.split(DELIMETER):
                 print("-----\t" + msg)
                 if msg not in M:
-                    M.append(msg) 
+                    M.append(str(msg)) 
 
     if not M:
         buf = "Found no results for query"
@@ -294,21 +272,6 @@ def search():
     return jsonify(results=buf)
 
 
-# Depricated in favor of new_get(), used with new index structure
-def get(index_n, k1, count):
-
-    cc = 0
-    while cc < count:
-        F = PRF(k1, str(cc))
-        if (DEBUG > 1): 
-            print("index key = " + index_n[0])
-            print("PRF of k1 and %d = %s\n" % (cc, F))
-        if F == index_n[0]:
-            print("C: " + str(cc))
-            return index_n[1]
-        cc = cc + 1
-    return 0
-
 # Use k1 (hashed search term) and c (num of files it's in) to get key, and 
 # then value of index entry.
 def new_get(index, k1, c):
@@ -319,19 +282,6 @@ def new_get(index, k1, c):
         d = None
     return d
 
-# FIXME: But maybe not. This may be the only somewhat sane addition for the
-# header search.  Could be joined with get(), but is distinct enough that
-# it may be best to keep them separate.
-def get_header(index_n, k1, header):
-
-    F = PRF(k1, header)
-    if (DEBUG > 1): 
-        print("index key = " + index_n[0])
-        print("PRF of k1 and %s = %s\n" % (header, F))
-    if F == index_n[0]:
-        return index_n[1]
-
-    return 0
 
 # Decrypt doc ID using k2
 def dec(k2, d):
@@ -362,12 +312,6 @@ def get_index_len(index):
     count = 0
     for k in index.keys():
         count = count+1
-    # for k, v in index.items():
-    #     count = count + 1
-    #     if (DEBUG > 1):
-    #         print("K: " + k)
-    #         print("V: " + v)
-    #         print("\n")
 
     return count
 

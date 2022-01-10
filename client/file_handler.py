@@ -28,8 +28,8 @@ FILE_ = 'orig/sample1.log'
 class FileHandler():
     def __init__(self, file):
         self.file_to_handle = file
-        # self.segments = []
-        self.segments = ['tmp/jGUHKTFim7HpDoNqRUZ6f3_en']
+        self.segments = []
+        # self.segments = ['tmp/jGUHKTFim7HpDoNqRUZ6f3_en']
         self.db = sqlite3.connect('metadata')
         if self.db == None:
             print("Error while opening database")
@@ -54,6 +54,8 @@ class FileHandler():
                     segment.write(line)
                     line_count = 1
         segment.close()
+        self.insert_to_metadata_db()
+        return self.segments
 
     def get_timestamps_from_segment(self, segment):
         with open(segment, 'rb') as f:
@@ -108,27 +110,31 @@ class FileHandler():
             f.writelines(line)
             f.writelines('\n')
 
-    def encode_logs(self, segment):
-        with open(segment, 'r') as seg:
-            for log in seg:
-                lookup_table = self.get_lookup_table()
-                segment_id=segment.split('/')[1]        # get filename only
-                l = LogHandler(lookup_table)
-                encoded_message = l.encode(log, segment_id)
-                self.write_to_file(encoded_message, segment+'_en')
-                lookup_table = l.get_updated_lookup_table()
-                self.set_lookup_table(lookup_table)
+    def encode_logs(self):
+        for segment in self.segments:
+            with open(segment, 'r') as seg:
+                for log in seg:
+                    lookup_table = self.get_lookup_table()
+                    segment_id=segment.split('/')[1]        # get filename only
+                    l = LogHandler(lookup_table)
+                    encoded_message = l.encode(log, segment_id)
+                    self.write_to_file(encoded_message, segment+'_en')
+                    lookup_table = l.get_updated_lookup_table()
+                    self.set_lookup_table(lookup_table)
+            os.remove(segment)
+            os.rename(segment+'_en', segment)
         
-    def decode_logs(self, segment):
-        with open(segment, 'r') as seg:
-            for line in seg:
-                lookup_table = self.get_lookup_table()
-                l = LogHandler(lookup_table)
-                log = l.decode(line.rstrip('\n'))
-                self.write_to_file(log, segment+'_de')
+    def decode_logs(self):
+        for segment in self.segments:
+            with open(segment, 'r') as seg:
+                for line in seg:
+                    lookup_table = self.get_lookup_table()
+                    l = LogHandler(lookup_table)
+                    log = l.decode(line.rstrip('\n'))
+                    self.write_to_file(log, segment+'_')
 
-f = FileHandler(FILE_)
+# for a single file:
+# f = FileHandler(FILE_)
 # f.split_file()
-# f.encode_logs('tmp/jGUHKTFim7HpDoNqRUZ6f3')
-# f.decode_logs('tmp/jGUHKTFim7HpDoNqRUZ6f3_en')
-f.insert_to_metadata_db()
+# f.encode_logs()
+# f.decode_logs()

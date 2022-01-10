@@ -45,10 +45,8 @@ def main():
     if args.update:
         if (DEBUG):
             print(("Updating index with document %s" % args.update[0]))
-
-        infilename = args.update[0]
-        outfilename = args.update[0].split("/")[1]
-        sse.update(infilename, outfilename)
+        filename = args.update[0]
+        sse.update(filename)
 
     elif args.search:
         if (DEBUG):
@@ -59,17 +57,13 @@ def main():
 
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")
-        index = dbm.open("index", "r")
-        for k in index.keys():
-            print("k:%s\tv:%s" % (k, index[k]))
-
-        index.close()
-
-        index = dbm.open("index_IDs", "r")
-        for k in index.keys():
-            print("k:%s\tv:%s" % (k, index[k]))
-
-        index.close()
+        indexes = os.listdir('indexes')
+        for index in indexes:
+            index_ = dbm.open('indexes/'+index, "r")
+            print("\n------"+index+"------")
+            for k in index_.keys():
+                print("k:%s\tv:%s" % (k, index_[k]))
+            index_.close()
 
     elif args.test_http:
         url = "http://localhost:5000/search"
