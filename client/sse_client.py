@@ -346,7 +346,6 @@ class SSE_Client():
         L = []
         ids = []
         for word in query:
-            if (DEBUG > 1): print(repr(word))
             word = word.lower()
             
             schema_id = get_schema_id(word)
@@ -380,10 +379,6 @@ class SSE_Client():
                 c = str(int(c))
                 L.append((k1, k2, c))
 
-            if (DEBUG > 1): 
-                print("k1 = " + k1)
-                print("k2 = " + k2)
-
         message = jmap.pack(SEARCH, L, ids)
 
         # Send data and unpack results.
@@ -411,7 +406,7 @@ class SSE_Client():
                 decoded = l.decode(each)
                 for word in query:
                     if re.search(r'\b{}\b'.format(word), decoded):
-                        print(decoded)  
+                        print(decoded)
 
 
     def PRF(self, k, data):

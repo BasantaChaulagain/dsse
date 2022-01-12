@@ -20,16 +20,13 @@ sys.path.insert(0, parent_dir)
 from client.log_handler import LogHandler
 
 # Number of logs in each segment. (threshold value)
-NUM_OF_LOGS = 4
-
-FILE_ = 'orig/sample1.log'
+NUM_OF_LOGS = 9
 
 
 class FileHandler():
     def __init__(self, file):
         self.file_to_handle = file
         self.segments = []
-        # self.segments = ['tmp/jGUHKTFim7HpDoNqRUZ6f3_en']
         self.db = sqlite3.connect('metadata')
         if self.db == None:
             print("Error while opening database")
@@ -54,7 +51,6 @@ class FileHandler():
                     segment.write(line)
                     line_count = 1
         segment.close()
-        self.insert_to_metadata_db()
         return self.segments
 
     def get_timestamps_from_segment(self, segment):
@@ -71,13 +67,12 @@ class FileHandler():
         ts_end = last_line.split(',')[0].split(':')[0]
         return (ts_start, ts_end)
 
-    def insert_to_metadata_db(self):
+    def insert_to_metadata_db(self, segment):
         file_id = self.file_to_handle.split('/')[1]
-        for segment in self.segments:
-            ts_start, ts_end = self.get_timestamps_from_segment(segment)
-            segment = segment.split('/')[1]
-            self.db.execute('''INSERT INTO file_segment (file_id, segment_id, ts_start, ts_end) VALUES (?, ?, ?, ?)''',(file_id, segment, ts_start, ts_end))
-            self.db.commit()
+        ts_start, ts_end = self.get_timestamps_from_segment(segment)
+        segment = segment.split('/')[1]
+        self.db.execute('''INSERT INTO file_segment (file_id, segment_id, ts_start, ts_end) VALUES (?, ?, ?, ?)''',(file_id, segment, ts_start, ts_end))
+        self.db.commit()
 
     def get_lookup_table(self):
         if not os.path.exists('ltdict.json'):
@@ -123,6 +118,7 @@ class FileHandler():
                     self.set_lookup_table(lookup_table)
             os.remove(segment)
             os.rename(segment+'_en', segment)
+            self.insert_to_metadata_db(segment)
         
     def decode_logs(self):
         for segment in self.segments:
