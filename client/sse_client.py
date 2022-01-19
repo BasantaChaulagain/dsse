@@ -167,10 +167,8 @@ class SSE_Client():
         # read in infile (opened file descriptor)
         buf = infile.read()
         if buf == '': 
-            print("[Enc] mail to encrypt is empty!\nExiting\n")
+            print("[Enc] segment to encrypt is empty!\nExiting\n")
             exit(1)
-
-        if (DEBUG > 1): print(("[Enc] mail to encrypt: %s\n" % (buf)))
 
         # pad to mod 16
         while len(buf)%16 != 0:
@@ -182,7 +180,7 @@ class SSE_Client():
     def decryptSegment(self, buf, outfile=None):
         # Just pass in input file buf and fd in which to write out
         if buf == '': 
-            print("[Dec] mail to decrypt is empty!\nExiting\n")
+            print("[Dec] segment to decrypt is empty!\nExiting\n")
             exit(1)
         
         if type(buf) == str:
@@ -233,7 +231,6 @@ class SSE_Client():
         segments = file.split_file()
         file.encode_logs()
         lookup_table = file.get_lookup_table()
-        # lookup_table = [{'0': ['type=\x115 msg=\x112 ver=\x117 format=\x112 kernel=\x117 auid=\x113 pid=\x113 subj=\x112 res=\x112 ', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '1': ['type=\x116 msg=\x112 proctitle=\x110 ', 5, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '2': ['type=\x112 msg=\x112 arch=\x114 syscall=\x113 success=\x112 exit=\x113 a0=\x113 a1=\x114 a2=\x113 a3=\x113 items=\x113 ppid=\x113 pid=\x113 auid=\x113 uid=\x113 gid=\x113 euid=\x113 suid=\x113 fsuid=\x113 egid=\x113 sgid=\x113 fsgid=\x113 tty=\x111 ses=\x113 comm=\x110 exe=\x110 key=\x111 ', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '3': ['type=\x112 msg=\x112 arch=\x114 syscall=\x113 success=\x112 exit=\x113 a0=\x113 a1=\x114 a2=\x113 a3=\x114 items=\x113 ppid=\x113 pid=\x113 auid=\x113 uid=\x113 gid=\x113 euid=\x113 suid=\x113 fsuid=\x113 egid=\x113 sgid=\x113 fsgid=\x113 tty=\x111 ses=\x113 comm=\x110 exe=\x110 key=\x111 ', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '4': ['type=\x112 msg=\x112 arch=\x114 syscall=\x113 success=\x112 exit=\x113 a0=\x114 a1=\x113 a2=\x114 a3=\x114 items=\x113 ppid=\x113 pid=\x113 auid=\x113 uid=\x113 gid=\x113 euid=\x113 suid=\x113 fsuid=\x113 egid=\x113 sgid=\x113 fsgid=\x113 tty=\x111 ses=\x113 comm=\x110 exe=\x110 key=\x111 ', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '5': ['type=\x112 msg=\x112 arch=\x114 syscall=\x113 success=\x112 exit=\x113 a0=\x113 a1=\x114 a2=\x114 a3=\x114 items=\x113 ppid=\x113 pid=\x113 auid=\x113 uid=\x113 gid=\x113 euid=\x113 suid=\x113 fsuid=\x113 egid=\x113 sgid=\x113 fsgid=\x113 tty=\x111 ses=\x113 comm=\x110 exe=\x110 key=\x111 ', 1, ['MdwyA4P7hpWdEzbLDmtQxz']]}, {'2': {'0': ['unconfined', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '1': ['success', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '2': ['raw', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '3': ['audit', 10, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '4': ['SYSCALL', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '5': ['no', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '6': ['yes', 3, ['erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']]}, '5': {'0': ['DAEMON_START', 1, ['bYvf8pWtahZSNwiVMs7M8g']]}, '7': {'0': ['2.3.2', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '1': ['4.2.0-27-generic', 1, ['bYvf8pWtahZSNwiVMs7M8g']]}, '3': {'0': ['49013', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '1': ['1003', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '2': ['1', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '3': ['4', 2, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD']], '4': ['19078622', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '5': ['4294967295', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '6': ['1236', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '7': ['10', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '8': ['-11', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '9': ['0', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '10': ['8', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '11': ['7', 2, ['erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '12': ['2', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '13': ['16', 1, ['MdwyA4P7hpWdEzbLDmtQxz']]}, '0': {'0': ['"/usr/lib/accountsservice/accounts-daemon"', 9, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '1': ['"gmain"', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']]}, '6': {'0': ['UNKNOWN[1327]', 5, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']]}, '1': {'0': ['(none)', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '1': ['(null)', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']]}, '4': {'0': ['c000003e', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '1': ['7fc786f02cd0', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '2': ['7fc786f02c88', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '3': ['19b58250', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '4': ['3c2', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '5': ['7fc7780008c0', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '6': ['19b60fee', 2, ['erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '7': ['541b', 1, ['MdwyA4P7hpWdEzbLDmtQxz']], '8': ['7fc786f02cec', 1, ['MdwyA4P7hpWdEzbLDmtQxz']]}}]
 
         # First update index and send it
         indexes = self.update_index(lookup_table)
@@ -385,20 +382,16 @@ class SSE_Client():
         r = self.send(SEARCH, message) 
         ret_data = r.json()
         results = ret_data['results']
-        print("Results of SEARCH:")
+        print("Results of SEARCH:", results)
 
         if results == NO_RESULTS:
             print(results)
             return -1
 
-        # Print out messages that are returned from server
-        # TODO: Should recieve and print out mail, or just recieve mailIDs
-        # and resend requests for those messages?
-
-        # FIXME: hack to decide if server is returning encrypted msgs (1)
-        # or just the decrypted IDs (0)
         for i in results:
+            print(i.encode('latin1'))
             decrypted = self.decryptSegment(i.encode('latin1'), )
+            print("decrypted: ", decrypted)
             lookup_table = get_lookup_table()
             decrypted_ = decrypted.split('\n')[:-1]
             l = LogHandler(lookup_table)

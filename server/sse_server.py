@@ -144,11 +144,6 @@ def update():
 
         index[i0] = i1
 
-    if (DEBUG > 1): 
-        print("\nUpdate Complete! Index contents:") 
-        for k, v in index.items():
-            print("k:%s\nv:%s\n\n" % (k, v))
-
     index.close()
     return jsonify(results="GOOD UPDATE")
 
@@ -189,7 +184,6 @@ def search():
                 c = i[2].encode('latin1', 'ignore')
         except:
             pass
-        if (DEBUG > 0): print("k1: %s\nk2: %s\nc: %s" % (k1, k2, c))
 
         # D [] is a list of mail IDs found for a term.
         # Its leftover 'legacy' code. Used to be you had to iterate through
@@ -223,7 +217,6 @@ def search():
         for d in D:
             # Decrypt d, getting list of docs that word is in
             m = dec(k2, d).decode()
-            print(m, type(m))
             m_str = ''
             for x in m:
                 if x in string.printable:
@@ -238,20 +231,6 @@ def search():
         print("[Server] " +  buf)
         return jsonify(results=buf)
 
-    # FIXME: sort out if we send back just IDs, or IDs and messages
-    '''
-    # quick hack to return early with just IDs, rather than the
-    # msgs themselves
-    no_files = 0
-    if no_files:
-        return jsonify(results=M)
-    '''
-
-    if (DEBUG > 1): 
-        print("[Server] Found %d results for query" % len(M))
-        for m in M:
-            print("\t - %s" % repr(m))
-        print("\n")
 
     # TODO: Separate method for sending back files?  
     # Should it be whole files or just msg ids?
@@ -268,7 +247,7 @@ def search():
         fd = open(path, "rb")
         buf.append(fd.read().decode('latin1'))
         fd.close()
-    
+        
     return jsonify(results=buf)
 
 
@@ -290,8 +269,6 @@ def dec(k2, d):
     iv = d_bin[:16]
     cipher = AES.new(k2[:16], AES.MODE_CBC, iv)
     doc = cipher.decrypt(d_bin[16:])
-
-    if (DEBUG > 1): print("[Server] Retrieved Doc = %s" % (doc))
 
     return doc
 
