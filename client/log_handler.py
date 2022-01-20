@@ -86,7 +86,7 @@ class LogHandler:
     def unparse_log(self, ts, variables):
         patt = re.compile(r'\w+\=\x11\d+')
         kv_pair = patt.findall(self.lt_string)
-        updated_kv = []
+        updated_kv =[]
         for each, var in zip(kv_pair, variables):
             each = re.sub(r'\x11\d+', var, each)
             if re.match(r'msg=\w+', each):
@@ -164,11 +164,15 @@ class LogHandler:
     
     #code to decode the message using ltdict and vdict
     def decode(self, encoded_log):
-        splitted = encoded_log.split(",",2)
-        ts = splitted[0]
-        logtype_id = splitted[1]
-        self.variable_ids = splitted[2].split(',')
-        self.lt_string = self.ltdict.get(logtype_id)[0]
-        variables = self.get_variables_from_id()
-        log = self.unparse_log(ts, variables)
-        return(log)
+        try:
+            splitted = encoded_log.split(",",2)
+            ts = splitted[0]
+            logtype_id = splitted[1]
+            self.variable_ids = splitted[2].split(',')
+            self.lt_string = self.ltdict.get(logtype_id)[0]
+            variables = self.get_variables_from_id()
+            log = self.unparse_log(ts, variables)
+            return(log)
+        except:
+            print("unable to decode:\t",encoded_log)
+            return ""
