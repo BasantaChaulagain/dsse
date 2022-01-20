@@ -37,7 +37,7 @@ import json
 FILE = "[JMAP] "
 SEARCH = "search"
 UPDATE = "update"
-ADD_FILE = "addmail"
+ADD_FILE = "add"
 SEARCH_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
 ADD_FILE_METHOD = "putEncryptedMessage"
@@ -110,6 +110,7 @@ def jmap_header():
     return JMAP_HEADER
 
 def pack_search(data, id_num):
+    id_num = json.dumps(id_num)
     return json.dumps([SEARCH_METHOD, {"query": data}, id_num])
 
 def pack_update(data, id_num):
@@ -147,7 +148,7 @@ def unpack_search(data):
         return -1
 
     method = data[0]
-    id_num = data[2]
+    id_num = json.loads(data[2])
 
     # Limit scope to args (data[1])
     data = data[1]

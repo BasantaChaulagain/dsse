@@ -40,3 +40,11 @@
 
 #DS_Store
 .DS_Store
+
+# Encrypted folders
+client/enc/
+client/indexes/
+client/orig/
+client/tmp/
+server/enc/
+server/indexes/
