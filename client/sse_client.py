@@ -32,6 +32,7 @@
 #
 ############
 
+from requests.api import get
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
@@ -44,6 +45,8 @@ from flask import Flask
 import requests
 from nltk.stem.porter import PorterStemmer
 import os
+import json
+import re
 import inspect
 import sys
 
@@ -52,12 +55,12 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 from jmap import jmap
 from client.file_handler import FileHandler
-from client.log_handler import LogHandler
+from client.log_handler import variable_schema, LogHandler
 
 DEBUG = 1
 SEARCH = "search"
 UPDATE = "update"
-ADD_MAIL = "addmail"
+ADD = "add"
 
 # Default url is localhost, and the port 5000 is set by Flask on the server
 DEFAULT_URL = "http://127.0.0.1:5000/"
@@ -72,6 +75,25 @@ DELIMETER = "++?"
 EXCLUDE = string.punctuation
 
 app = Flask(__name__)
+
+def get_schema_id(var):
+    for key, value in variable_schema.items():
+        match = re.fullmatch(value, var)
+        if match:
+            return(str(key))
+    return None
+
+def get_lookup_table():
+    try:
+        with open('ltdict.json', 'r') as f:
+            ltdict = json.load(f)
+        with open('vdict.json', 'r') as f:
+            vdict = json.load(f)
+        lookup_table = [ltdict, vdict]
+    except:
+        lookup_table = [{},{}]
+    return lookup_table
+
 
 ########
 #
@@ -159,7 +181,6 @@ class SSE_Client():
 
     def decryptSegment(self, buf, outfile=None):
         # Just pass in input file buf and fd in which to write out
-
         if buf == '': 
             print("[Dec] mail to decrypt is empty!\nExiting\n")
             exit(1)
@@ -183,10 +204,10 @@ class SSE_Client():
         # else print to terminal
         else:
             tmp = cipher.decrypt(buf[16:])
-            print(tmp.decode('latin1'))
+            return(tmp.decode('latin1'))
 
 
-    def encryptSegmentID(self, k2, document, word=None, index_IDs=None):
+    def encryptSegmentID(self, k2, segment_ids):
 
         # Encrypt doc id (document) with key passed in (k2)
 
@@ -194,189 +215,121 @@ class SSE_Client():
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(k2[:16].encode('latin1'), AES.MODE_CBC, iv)
 
-        document = document.encode('latin1')
         # pad to mod 16
-        while len(document)%16 != 0:
-            document = document + b'\x08'
+        while len(segment_ids)%16 != 0:
+            segment_ids = segment_ids + '\x08'
 
-        # If word and index_IDs are supplied, then we're updated the 
-        # existing list of ids for a corresponding word/term.
-        # This is used so that we can encrypt a list of mailIDs, rather
-        # than just a single one, speeding up SEARCH routine later.
-        if word and index_IDs:
-            IDs = index_IDs[word]
-            IDs = IDs.decode() + DELIMETER + document.decode() 
-
-            while len(IDs)%16 != 0:
-                IDs = IDs + "\x08"
-
-            encId = iv + cipher.encrypt(IDs.encode('latin1'))
-
-        # Else, encrypt single document (likely meaning it's the first time
-        # a particular word has been found in the mail, so the first ID to
-        # get added to the index for that word
-        else:
-            encId = iv + cipher.encrypt(document)
+        encId = iv + cipher.encrypt(segment_ids.encode('latin1'))
 
         if (DEBUG > 1):
             print(("New ID for '%s' = %s" % 
-                 (document, (binascii.hexlify(encId)))))
+                 (segment_ids, (binascii.hexlify(encId)))))
 
         return binascii.hexlify(encId)
 
 
-    def update(self, infilename, outfilename):
+    def update(self, filename):
+        file = FileHandler(filename)
+        segments = file.split_file()
+        file.encode_logs()
+        lookup_table = file.get_lookup_table()
+        # lookup_table = [{'0': ['type=\x115 msg=\x112 ver=\x117 format=\x112 kernel=\x117 auid=\x113 pid=\x113 subj=\x112 res=\x112 ', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '1': ['type=\x116 msg=\x112 proctitle=\x110 ', 5, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '2': ['type=\x112 msg=\x112 arch=\x114 syscall=\x113 success=\x112 exit=\x113 a0=\x113 a1=\x114 a2=\x113 a3=\x113 items=\x113 ppid=\x113 pid=\x113 auid=\x113 uid=\x113 gid=\x113 euid=\x113 suid=\x113 fsuid=\x113 egid=\x113 sgid=\x113 fsgid=\x113 tty=\x111 ses=\x113 comm=\x110 exe=\x110 key=\x111 ', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '3': ['type=\x112 msg=\x112 arch=\x114 syscall=\x113 success=\x112 exit=\x113 a0=\x113 a1=\x114 a2=\x113 a3=\x114 items=\x113 ppid=\x113 pid=\x113 auid=\x113 uid=\x113 gid=\x113 euid=\x113 suid=\x113 fsuid=\x113 egid=\x113 sgid=\x113 fsgid=\x113 tty=\x111 ses=\x113 comm=\x110 exe=\x110 key=\x111 ', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '4': ['type=\x112 msg=\x112 arch=\x114 syscall=\x113 success=\x112 exit=\x113 a0=\x114 a1=\x113 a2=\x114 a3=\x114 items=\x113 ppid=\x113 pid=\x113 auid=\x113 uid=\x113 gid=\x113 euid=\x113 suid=\x113 fsuid=\x113 egid=\x113 sgid=\x113 fsgid=\x113 tty=\x111 ses=\x113 comm=\x110 exe=\x110 key=\x111 ', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '5': ['type=\x112 msg=\x112 arch=\x114 syscall=\x113 success=\x112 exit=\x113 a0=\x113 a1=\x114 a2=\x114 a3=\x114 items=\x113 ppid=\x113 pid=\x113 auid=\x113 uid=\x113 gid=\x113 euid=\x113 suid=\x113 fsuid=\x113 egid=\x113 sgid=\x113 fsgid=\x113 tty=\x111 ses=\x113 comm=\x110 exe=\x110 key=\x111 ', 1, ['MdwyA4P7hpWdEzbLDmtQxz']]}, {'2': {'0': ['unconfined', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '1': ['success', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '2': ['raw', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '3': ['audit', 10, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '4': ['SYSCALL', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '5': ['no', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '6': ['yes', 3, ['erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']]}, '5': {'0': ['DAEMON_START', 1, ['bYvf8pWtahZSNwiVMs7M8g']]}, '7': {'0': ['2.3.2', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '1': ['4.2.0-27-generic', 1, ['bYvf8pWtahZSNwiVMs7M8g']]}, '3': {'0': ['49013', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '1': ['1003', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '2': ['1', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '3': ['4', 2, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD']], '4': ['19078622', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '5': ['4294967295', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '6': ['1236', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '7': ['10', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '8': ['-11', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '9': ['0', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '10': ['8', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '11': ['7', 2, ['erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '12': ['2', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '13': ['16', 1, ['MdwyA4P7hpWdEzbLDmtQxz']]}, '0': {'0': ['"/usr/lib/accountsservice/accounts-daemon"', 9, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '1': ['"gmain"', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']]}, '6': {'0': ['UNKNOWN[1327]', 5, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']]}, '1': {'0': ['(none)', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '1': ['(null)', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']]}, '4': {'0': ['c000003e', 4, ['bYvf8pWtahZSNwiVMs7M8g', 'erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '1': ['7fc786f02cd0', 1, ['bYvf8pWtahZSNwiVMs7M8g']], '2': ['7fc786f02c88', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '3': ['19b58250', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '4': ['3c2', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '5': ['7fc7780008c0', 1, ['erDE3AQr3oGSVVV9JLUKcD']], '6': ['19b60fee', 2, ['erDE3AQr3oGSVVV9JLUKcD', 'MdwyA4P7hpWdEzbLDmtQxz']], '7': ['541b', 1, ['MdwyA4P7hpWdEzbLDmtQxz']], '8': ['7fc786f02cec', 1, ['MdwyA4P7hpWdEzbLDmtQxz']]}}]
 
         # First update index and send it
-        data = self.update_index(infilename)
-        message = jmap.pack(UPDATE, data, "1")
-        r = self.send(UPDATE, message)
-        data = r.json()
-        results = data['results']
-        print("Results of UPDATE: " + results) 
+        indexes = self.update_index(lookup_table)
+        for index in indexes:
+            message = jmap.pack(UPDATE, index[0], index[1])
+            r = self.send(UPDATE, message)
+            data = r.json()
+            results = data['results']
+            print("Results of Index UPDATE: " + results) 
         
         # Then encrypt msg
-        infile = open(infilename, "r")     
-        outfilename_full = "enc/" + outfilename
-        outfile = open(outfilename_full, "wb+")
-        self.encryptSegment(infile, outfile)
-        infile.close()
-        
-        outfile.seek(0)
-        data = binascii.hexlify(outfile.read())
-        message = jmap.pack(ADD_MAIL, data, "1", outfilename)
+        for seg in segments:
+            infile = open(seg, "r") 
+            outfilename_ = seg.split('/')[1]
+            outfilename = "enc/" + outfilename_
+            outfile = open(outfilename, "wb+")
+            self.encryptSegment(infile, outfile)
+            infile.close()
+    
+            outfile.seek(0)
+            data = binascii.hexlify(outfile.read())
+            message = jmap.pack(ADD, data, "1", outfilename_)
 
-        # Then send message
-        r = self.send(ADD_MAIL, message, outfilename)        
-        data = r.json()
-        results = data['results']
-        print("Results of UPDATE/ADD FILE: " + results)
+            # Then send message
+            r = self.send(ADD, message, outfilename)        
+            data = r.json()
+            results = data['results']
+            print("Results of UPDATE/ADD FILE: " + results)
 
-        outfile.close()
-
-
-    def update_index(self, document):
-
-        # Open file, read it's data, and close it
-        msg_lines = []
-        with open(document, "r") as infile:
-            msg_lines = infile.readlines()
-        infile.close()
-
-        # Parse body of email and return list of words
-        word_list = self.parseDocument(msg_lines)
-
-        if (DEBUG > 1): print("[Update] Words from doc: " + str(word_list))
-
-        # Encrypt the index to send to the server (body terms)
-        index = self.encryptIndex(document.split("/")[1], word_list)
-
-        if (DEBUG > 1):
-            print("\n[Client] Printing list elements to add to index")
-            for x in index:
-                print("%s\n%s\n\n" % (x[0], x[1]))
-        return index
+            outfile.close()
 
 
-    def parseDocument(self, logs):
+    def update_index(self, lookup_table):
 
-        # Iterate through email's body, line-by-line, word-by-word,
-        # strip unwanted characters, skip duplicates, and add to list
-        word_list = []
-        for line in logs:
-            for word in line.split():
-                try:
-                    if any(s in EXCLUDE for s in word):
-                        word = self.removePunctuation(word)
-                        word = self.stemmer.stem(word)
-                    word = word.lower()
-                    word = word.encode('latin1', 'ignore')
-                    if  word not in word_list and b'\x08' not in word:
-                        word_list.append(word)
-                # except catches case of first word in doc, and an
-                # empty list cannot be iterated over
-                except:
-                    if any(s in EXCLUDE for s in word):
-                        word = self.removePunctuation(word)
-                    word = self.stemmer.stem(word)
-                    word = word.lower()
-                    word = word.encode('latin1', 'ignore')
-                    word_list = [word]
+        vdict = lookup_table[1]
+        vdict_size = len(vdict)
+        for key, value in vdict.items():  
+            index = dbm.open("indexes/"+key+"_index", "c")
+            index_IDs = dbm.open("indexes/"+key+"_index_IDs", "c")
 
-        return word_list
+            vdict_items = list(value.values())
+            for item in vdict_items:
+                # sample item: ['DAEMON_START', 1, ['bYvf8pWtahZSNwiVMs7M8g']]
+                if item[0] not in index.keys():
+                    index[item[0]] = str(item[1])
+                else:
+                    if item[1] != int(index.get(item[0])):
+                        index[item[0]] = str(item[1])
+
+                if item[0] not in index_IDs.keys():
+                    index_IDs[item[0]] = DELIMETER.join(item[2])
+                else:
+                    if int(item[1]) != index.get(item[0]):
+                        index[item[0]] = DELIMETER.join(item[2])
+            
+            index.close()
+            index_IDs.close()
+
+        indexes = []
+        for i in range(vdict_size):
+            ind = "indexes/"+str(i)+"_index"
+            ind_id = "indexes/"+str(i)+"_index_IDs"
+            index = self.encryptIndex(ind, ind_id)
+            indexes.append((index, i))
+
+        return indexes
 
 
-    def removePunctuation(self, string):
-        return ''.join(ch for ch in string if ch not in EXCLUDE)
-
-
-    def encryptIndex(self, document, word_list):
+    def encryptIndex(self, index, index_IDs):
 
         # This is where the meat of the SSE update routine is implemented
 
-        if (DEBUG > 1): 
-            print("Encrypting index of words in '%s'" % document)
-
         L = []
-        index = dbm.open("index", "c")
-        index_IDs = dbm.open("index_IDs", "c")
+        index = dbm.open(index, "r")
+        index_IDs = dbm.open(index_IDs, "r")
        
         # For each word, look through local index to see if it's there. If
         # not, set c = 0, and apply the PRF. Otherwise c == number of 
         # occurences of that word/term/number 
 
-        for w in word_list:
-            if type(w) == bytes:
-                w = w.decode()
+        for word in index.keys():
+            if type(word) == bytes:
+                word = word.decode()
+            count = index[word]
+            if type(count) == bytes:
+                count = count.decode()
             # Initialize K1 and K2
-            k1 = self.PRF(self.k, ("1" + w))
-            k2 = self.PRF(self.k, ("2" + w))
-
-            if (DEBUG > 1): print(("k1 = %s\nk2 = %s\n" % (k1, k2)))
-
-            # counter "c" (set as 0 if not in index), otherwise set
-            # as number found in index (refers to how many documents
-            # that word appears in
-            c = 0
-            found = 0
-            try:
-                c = int(index[w])
-                found = 1
-                if (DEBUG > 1): 
-                    print(("Found '%s' in db. C = %d" % (w, c)))
-            except:
-                c = 0
+            k1 = self.PRF(self.k, ("1" + word))
+            k2 = self.PRF(self.k, ("2" + word))
  
-            # Set l as the PRF of k1 (1 || w) and c (num of occur) if 
-            # parsing the body (ENC_BODY).
-            # If parsing header list, then PRF k1 and header term.
-            
-            l = self.PRF(k1, str(c))
-            lprime = self.PRF(k1, str(c-1))
+            # Set l as the PRF of k1 (1 || w) and c (num of occur) if parsing the body            
+            l = self.PRF(k1, count)
+            lprime = self.PRF(k1, str(int(count)-1))
 
-            # Update encryptSegmentID() opens index_IDs and appends
-            # new document to list with DELIMETER and encrypts all.
-            # Set d as encrypted mail id [list]
-            if not found:
-                d = self.encryptSegmentID(k2, document).decode()
-            else:
-                d = self.encryptSegmentID(k2, document, w, index_IDs).decode()
-
-            if (DEBUG > 1):
-                print("w = " + w + "\tc = " + str(c))
-                print(("l = %s\nd = %s\n" % (l, d)))
-
-            # Increment c (1 indexed, not 0), then add unecrypted
-            # values to local index, and append encrypted/hashed
-            # values to L, the list that will extend the remote index
-            c = c + 1
-            index[w] = str(c)
-            if found:
-                IDs = index_IDs[w].decode()
-                if document not in IDs.split(DELIMETER):
-                    index_IDs[w] = IDs + DELIMETER + document
-            else:
-                index_IDs[w] = document
+            segment_ids = index_IDs[word].decode()
+            d = self.encryptSegmentID(k2, segment_ids).decode()
 
             L.append((l, d, lprime))
 
@@ -387,21 +340,24 @@ class SSE_Client():
 
 
     def search(self, query):
-
-        index = dbm.open("index", "r")
         query = query.split()
 
         # Generate list of querys (may be just 1)
         L = []
-        for i in query:
-            if (DEBUG > 1): print(repr(i))
-            i = i.lower()
+        ids = []
+        for word in query:
+            if (DEBUG > 1): print(repr(word))
+            word = word.lower()
+            
+            schema_id = get_schema_id(word)
+            ids.append(schema_id)
+            index = dbm.open("indexes/"+schema_id+"_index", "r")
 
             # For each term of query, first try to see if it's already in
             # index. If it is, send c along with k1 and k2. This will 
             # massively speed up search on server (1.5 minutes to < 1 sec)
             try:
-                c = index[i]
+                c = index[word]
             except:
                 c = None
 
@@ -409,8 +365,8 @@ class SSE_Client():
             # function to generate k1 and k2. K1 will be used to find the 
             # correct encrypted entry for the term on the server, and k2
             # will be used to decrypt the mail ID(s)
-            k1 = self.PRF(self.k, ("1" + i))
-            k2 = self.PRF(self.k, ("2" + i))
+            k1 = self.PRF(self.k, ("1" + word))
+            k2 = self.PRF(self.k, ("2" + word))
 
             # If no 'c' (term not in local index so likely not on server),
             # just send k1 and k2. Will take a long time to return false
@@ -419,16 +375,16 @@ class SSE_Client():
             # up to date?
             if not c:
                 L.append((k1, k2))
-            # Otherwise send along 'c'-1. 
+            # Otherwise send along 'c'. 
             else:
-                c = str(int(c)-1)
+                c = str(int(c))
                 L.append((k1, k2, c))
 
             if (DEBUG > 1): 
                 print("k1 = " + k1)
                 print("k2 = " + k2)
 
-        message = jmap.pack(SEARCH, L, "1")
+        message = jmap.pack(SEARCH, L, ids)
 
         # Send data and unpack results.
         r = self.send(SEARCH, message) 
@@ -446,12 +402,16 @@ class SSE_Client():
 
         # FIXME: hack to decide if server is returning encrypted msgs (1)
         # or just the decrypted IDs (0)
-        FILES = 1
         for i in results:
-            if (FILES):
-                self.decryptSegment(i.encode('latin1'), )
-            else:
-                print(i)
+            decrypted = self.decryptSegment(i.encode('latin1'), )
+            lookup_table = get_lookup_table()
+            decrypted_ = decrypted.split('\n')[:-1]
+            l = LogHandler(lookup_table)
+            for each in decrypted_:
+                decoded = l.decode(each)
+                for word in query:
+                    if re.search(r'\b{}\b'.format(word), decoded):
+                        print(decoded)  
 
 
     def PRF(self, k, data):
@@ -476,8 +436,8 @@ class SSE_Client():
         elif routine == UPDATE:
             url = url + UPDATE
             headers = jmap.jmap_header()
-        elif routine == ADD_MAIL:
-            url = url + ADD_MAIL
+        elif routine == ADD:
+            url = url + ADD
             # For sending mail, need to do a little extra with the headers
             headers = {'Content-Type': 'application/json',
                        'Content-Disposition': 
@@ -492,51 +452,3 @@ class SSE_Client():
         # Send to server using requests's post method, and return results
         # to calling method
         return requests.post(url, data, headers = headers)
-
-
-    def testSearch(self, index):
-        '''
-        Method for testing locally if the encryption in the update
-        routine is actually accurate. 
-        -create a static search term (ie: "the")
-        -generate hashes with self.k (ie generate k1 and k2)
-        -implement the backend get() and dec() methods to see if they
-         return the correct data
-        -try with search query that isn't in index
-        '''
-
-        # 'Client' activities
-        query = "This"
-        k1 = self.PRF(self.k, ("1" + query))
-        k2 = self.PRF(self.k, ("2" + query))
-
-        if (DEBUG > 1): 
-            print(("[testSearch]\nk1:%s\nk2:%s" % (k1, k2)))
-
-        # 'Server' activities
-        c = 0
-        found = 0
-        while c < len(index):
-            if (DEBUG): print("c = " + str(c))
-            result = self.testGet(index, k1, c)
-            if result: break
-            c = c + 1
-
-        if not result:
-            print("NOT FOUND in INDEX")
-
-        else:
-            print("FOUND RESULT")
-
-
-    def testGet(self, index, k, c):
-
-        cc = 0
-        while cc < len(index):
-            F = self.PRF(k, str(c))
-            if (DEBUG > 1):
-                print("[Get] F: " + F)
-                print("[Get] Idx: " + index[cc][0] + "\n")
-            if F == index[cc][0]:
-                return F
-            cc = cc + 1
