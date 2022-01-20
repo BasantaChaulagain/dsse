@@ -291,6 +291,7 @@ class SSE_Client():
             
             index.close()
             index_IDs.close()
+<<<<<<< HEAD
 
         indexes = []
         for i in range(vdict_size):
@@ -302,6 +303,19 @@ class SSE_Client():
         return indexes
 
 
+=======
+
+        indexes = []
+        for i in range(vdict_size):
+            ind = "indexes/"+str(i)+"_index"
+            ind_id = "indexes/"+str(i)+"_index_IDs"
+            index = self.encryptIndex(ind, ind_id)
+            indexes.append((index, i))
+
+        return indexes
+
+
+>>>>>>> d065b632fca69c6451f4fc6bfad1a3d324b1bcb8
     def encryptIndex(self, index, index_IDs):
 
         # This is where the meat of the SSE update routine is implemented
@@ -346,7 +360,10 @@ class SSE_Client():
         L = []
         ids = []
         for word in query:
+<<<<<<< HEAD
             if (DEBUG > 1): print(repr(word))
+=======
+>>>>>>> d065b632fca69c6451f4fc6bfad1a3d324b1bcb8
             word = word.lower()
             
             schema_id = get_schema_id(word)
@@ -380,10 +397,13 @@ class SSE_Client():
                 c = str(int(c))
                 L.append((k1, k2, c))
 
+<<<<<<< HEAD
             if (DEBUG > 1): 
                 print("k1 = " + k1)
                 print("k2 = " + k2)
 
+=======
+>>>>>>> d065b632fca69c6451f4fc6bfad1a3d324b1bcb8
         message = jmap.pack(SEARCH, L, ids)
 
         # Send data and unpack results.
@@ -411,7 +431,11 @@ class SSE_Client():
                 decoded = l.decode(each)
                 for word in query:
                     if re.search(r'\b{}\b'.format(word), decoded):
+<<<<<<< HEAD
                         print(decoded)  
+=======
+                        print(decoded)
+>>>>>>> d065b632fca69c6451f4fc6bfad1a3d324b1bcb8
 
 
     def PRF(self, k, data):
