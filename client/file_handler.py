@@ -48,6 +48,7 @@ class FileHandler():
                 else:
                     segment.close()
                     segment = self.get_new_segment()
+                    segment.write("")
                     segment.write(line)
                     line_count = 1
         segment.close()

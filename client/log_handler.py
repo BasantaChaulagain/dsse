@@ -174,5 +174,5 @@ class LogHandler:
             log = self.unparse_log(ts, variables)
             return(log)
         except:
-            print("unable to decode:\t",encoded_log)
+            # print("unable to decode:\t",encoded_log)
             return ""
