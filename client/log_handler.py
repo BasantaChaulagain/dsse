@@ -76,7 +76,7 @@ class LogHandler:
                 key_value = each.split('=')
                 # if key is msg field, take off the timestamp:id from the variable. This is specific to linux audit log.
                 if key_value[0] == 'msg':
-                    value = key_value[1].split('(')[0]                   
+                    value = key_value[1].split('(')[0]
                 else:
                     value = key_value[1]
                 self.variable.append(value)
@@ -174,5 +174,5 @@ class LogHandler:
             log = self.unparse_log(ts, variables)
             return(log)
         except:
-            print("unable to decode:\t",encoded_log)
+            # print("unable to decode:\t",encoded_log)
             return ""

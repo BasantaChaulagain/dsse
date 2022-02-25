@@ -32,6 +32,7 @@
 #
 ############
 
+import sqlite3
 from requests.api import get
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
@@ -128,6 +129,7 @@ class SSE_Client():
 
         # Stemming tool (cuts words to their roots/stems)
         self.stemmer = PorterStemmer()
+        self.ensure_metadata_db()
 
     def initKeys(self):
         # initialize keys k & kPrime
@@ -160,6 +162,14 @@ class SSE_Client():
         cipher = AES.new(key, AES.MODE_CBC, self.iv)
 
         return cipher
+
+
+    def ensure_metadata_db(self):
+        db = sqlite3.connect('metadata')
+        if db == None:
+            print("Error while opening database")
+        else:
+            db.execute('CREATE TABLE IF NOT EXISTS file_segment (file_id TEXT, segment_id TEXT, ts_start REAL, ts_end REAL)')
 
 
     def encryptSegment(self, infile, outfile):
@@ -382,16 +392,16 @@ class SSE_Client():
         r = self.send(SEARCH, message) 
         ret_data = r.json()
         results = ret_data['results']
-        print("Results of SEARCH:", results)
+        print("Results of SEARCH:")
 
         if results == NO_RESULTS:
             print(results)
             return -1
 
         for i in results:
-            print(i.encode('latin1'))
+            # print(i.encode('latin1'))
             decrypted = self.decryptSegment(i.encode('latin1'), )
-            print("decrypted: ", decrypted)
+            # print("decrypted: ", decrypted)
             lookup_table = get_lookup_table()
             decrypted_ = decrypted.split('\n')[:-1]
             l = LogHandler(lookup_table)

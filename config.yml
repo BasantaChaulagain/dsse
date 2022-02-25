@@ -1,0 +1,10 @@
+# postgres database setting
+PG_DATABASE:
+  server: localhost
+  port: 5432
+  dbname: DSSE
+  username: postgres
+  password: postgres
+
+
+
