@@ -48,6 +48,7 @@ class FileHandler():
                 else:
                     segment.close()
                     segment = self.get_new_segment()
+                    segment.write("")
                     segment.write(line)
                     line_count = 1
         segment.close()
@@ -119,6 +120,7 @@ class FileHandler():
             os.remove(segment)
             os.rename(segment+'_en', segment)
             self.insert_to_metadata_db(segment)
+
         
     def decode_logs(self):
         for segment in self.segments:

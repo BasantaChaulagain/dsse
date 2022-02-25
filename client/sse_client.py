@@ -163,6 +163,13 @@ class SSE_Client():
 
         return cipher
 
+    def ensure_metadata_db(self):
+        db = sqlite3.connect('metadata')
+        if db == None:
+            print("Error while opening database")
+        else:
+            db.execute('CREATE TABLE IF NOT EXISTS file_segment (file_id TEXT, segment_id TEXT, ts_start REAL, ts_end REAL)')
+
 
     def ensure_metadata_db(self):
         db = sqlite3.connect('metadata')
@@ -410,7 +417,6 @@ class SSE_Client():
                 for word in query:
                     if re.search(r'\b{}\b'.format(word), decoded):
                         print(decoded)
-
 
     def PRF(self, k, data):
         if type(data) == str:
