@@ -253,6 +253,7 @@ class SSE_Client():
         indexes = self.update_index(lookup_table)
         for index in indexes:
             message = jmap.pack(UPDATE, index[0], index[1])
+            print(message)
             r = self.send(UPDATE, message)
             data = r.json()
             results = data['results']
@@ -364,7 +365,13 @@ class SSE_Client():
             
             schema_id = get_schema_id(word)
             ids.append(schema_id)
-            index = dbm.open("indexes/"+schema_id+"_index", "r")
+            index_file = "indexes/"+schema_id+"_index"
+            
+            if (os.path.exists(index_file)):
+                index = dbm.open(index_file, "r")
+            else:
+                print("Search keyword not found")
+                return -1
 
             # For each term of query, first try to see if it's already in
             # index. If it is, send c along with k1 and k2. This will 

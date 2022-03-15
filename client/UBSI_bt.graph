@@ -1,0 +1,17 @@
+digraph callgraph {
+
+node[shape=oval, label="start_node"] P49011_-1;
+
+
+
+}
+/* num_proc 1, num_file 0, num_socket 0, num_edge 0
+
+Tainted Units:
+  pid 49011, cluster -1, path start_node
+    cluster: all units
+
+Tainted Files:
+
+Tainted Sockets:
+*/

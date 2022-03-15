@@ -20,7 +20,7 @@ sys.path.insert(0, parent_dir)
 from client.log_handler import LogHandler
 
 # Number of logs in each segment. (threshold value)
-NUM_OF_LOGS = 9
+NUM_OF_LOGS = 15
 
 
 class FileHandler():
