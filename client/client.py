@@ -13,13 +13,21 @@ import urllib
 import os
 import inspect
 import sys
+import yaml
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
-from client.sse_client import SSE_Client
+from client.sse_client import CSV_INPUT, SSE_Client
+
+# CONFIG_FILE = "../config.yml"
+# config = {}
+# with open(CONFIG_FILE, 'r') as ymlfile:
+#     config = yaml.safe_load(ymlfile)
 
 DEBUG = 1
+CSV_INPUT = 1
+# CSV_INPUT = config["GLOBAL"]["CSV_INPUT"]
 
 def main():
 
@@ -37,6 +45,7 @@ def main():
     parser.add_argument('-u', '--update', metavar='update', dest='update',
                         nargs=1)
     parser.add_argument('-i', '--inspect_index', dest='inspect_index')
+    parser.add_argument('-c', '--csv_input', dest='csv_input')
     parser.add_argument('-t', '--test_http', dest='test_http')
     args = parser.parse_args()
  
@@ -64,6 +73,13 @@ def main():
             for k in index_.keys():
                 print("k:%s\tv:%s" % (k, index_[k]))
             index_.close()
+
+    elif args.csv_input:
+        # config["GLOBAL"]["CSV_INPUT"] = 1
+        # with open(CONFIG_FILE, 'w') as ymlfile:
+        #     yaml.safe_dump(config, ymlfile)
+        CSV_INPUT = 1
+
 
     elif args.test_http:
         url = "http://localhost:5000/search"

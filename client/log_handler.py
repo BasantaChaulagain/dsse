@@ -15,17 +15,26 @@ timestamp_id_pattern = [r"\d{10}\.\d{3}\:\d+",
 # this captures everything in the form key=value where values can have space in between (like filename with space.)
 kv_pattern = re.compile(r'(\w+\=(?:\"|\().*?(?:\"|\))|\w+\=\S+)')
 
+csv_pattern = re.compile(r'\s*(.*?);')
+
 # more generic regex should be written at the end.
-variable_schema = { '0': r'\"[\/\w\-\_]+\"',
-                    '1': r'\([\w]+\)', 
-                    '2': r'[A-Za-z]+',
-                    '3': r'-?\d+',
-                    '4': r'[\da-fA-F]+',
-                    '5': r'[\d\w]+',
-                    '6': r'[A-Za-z]+\[\d+\]',
-                    '7': r'.*?'
+variable_schema = { '0': r'\w+\(\d+\)',
+                    '1': r'\"[\/\w\-\_]+\"',
+                    '2': r'\([\w]+\)',
+                    '3': r'([A-Za-z]+\[\d+\]\=[\w]+\s*)+',
+                    '4': r'[A-Za-z]+\[\d+\]',
+                    '5': r'\d+_\d+\.\d+',
+                    '6': r'\d+\.\d+\_\d+\_\d+',
+                    '7': r'(\/[\w\.]+)+',
+                    '8': r'[A-Za-z\.]+',
+                    '9': r'-?\d+',
+                    '10': r'[\da-fA-F]+',
+                    '11': r'[\d\w]+',
+                    '12': r'\s*',
+                    '13': r'.*?'
                    }
 
+CSV_INPUT = 1
 
 class LogHandler:
     def __init__(self, lookup_table):
@@ -44,11 +53,19 @@ class LogHandler:
         return [self.ltdict, self.vdict]
 
     def extract_timestamp(self, log):
-        for ts_patt in timestamp_id_pattern:
-            ts_patt = re.compile(ts_patt)
-            match = ts_patt.search(log)
-            if match:
-                return(match.group())
+        if (CSV_INPUT):
+            ts = log.split(';')[1].split(';')[0].split('(')[0].strip(' ')
+            return ts
+        else:
+            for ts_patt in timestamp_id_pattern:
+                ts_patt = re.compile(ts_patt)
+                match = ts_patt.search(log)
+                if match:
+                    return(match.group())
+
+    def extract_event_id(self, log):
+        eid = log.split(';')[0]
+        return eid
 
     def get_schema_id(self, var):
         for key, value in variable_schema.items():
@@ -70,18 +87,26 @@ class LogHandler:
 
     # code to find the variables and log_type
     def parse_log(self, log):
-        match = kv_pattern.findall(log)
-        if match:
-            for each in match:
-                key_value = each.split('=')
-                # if key is msg field, take off the timestamp:id from the variable. This is specific to linux audit log.
-                if key_value[0] == 'msg':
-                    value = key_value[1].split('(')[0]
-                else:
-                    value = key_value[1]
-                self.variable.append(value)
-                schema_id = self.get_schema_id(value) 
-                self.lt_string = self.lt_string+key_value[0]+'='+'\x11'+schema_id+' '
+        if (CSV_INPUT):
+            match = csv_pattern.findall(log)
+            if match:
+                self.variable = match[2:]
+                for each in self.variable:
+                    schema_id = self.get_schema_id(each)
+                    self.lt_string = self.lt_string + '\x11' + schema_id + ' '
+        else:
+            match = kv_pattern.findall(log)
+            if match:
+                for each in match:
+                    key_value = each.split('=')
+                    # if key is msg field, take off the timestamp:id from the variable. This is specific to linux audit log.
+                    if key_value[0] == 'msg':
+                        value = key_value[1].split('(')[0]
+                    else:
+                        value = key_value[1]
+                    self.variable.append(value)
+                    schema_id = self.get_schema_id(value) 
+                    self.lt_string = self.lt_string+key_value[0]+'='+'\x11'+schema_id+' '
     
     def unparse_log(self, ts, variables):
         patt = re.compile(r'\w+\=\x11\d+')
@@ -131,6 +156,7 @@ class LogHandler:
         # get each schema_type from lt_string and lookup each variables in variable list with the the vdict of particular schema type.
         variable_ids = ""
         pattern = r'(?:\x11)(\d+)'
+        print("ltstring", self.lt_string)
         match = re.findall(pattern, self.lt_string)
         if match and len(match)==len(self.variable):
             for schema_id, variable in zip (match, self.variable):
@@ -154,12 +180,20 @@ class LogHandler:
     # code to encode the message using ltdict and vdict
     def encode(self, log, segment):
         ts = self.extract_timestamp(log)
+        if (CSV_INPUT):
+            eid = self.extract_event_id(log)
         self.parse_log(log)
         self.write_to_vdict(segment)
         self.write_to_ltdict(segment)
+        print(self.ltdict)
+        print(self.vdict)
         variable_ids = self.get_variable_ids()
         logtype_id = self.get_log_type_id(self.lt_string)
-        encoded_message = ts + "," + logtype_id + "," + variable_ids
+        if (CSV_INPUT):
+            print(logtype_id, variable_ids)
+            encoded_message = ts + ":" + eid + "," + logtype_id + "," + variable_ids
+        else:
+            encoded_message = ts + "," + logtype_id + "," + variable_ids
         return(encoded_message)
     
     #code to decode the message using ltdict and vdict
@@ -176,3 +210,20 @@ class LogHandler:
         except:
             # print("unable to decode:\t",encoded_log)
             return ""
+
+
+logs = [
+    '''35559695; 1471074506.950(Sat Aug 13 03:48:26 2016); read(0); 4096;  a[0]=0x4 a[1]=0x7fc46876a000 a[2]=0x1000; 49011_1471074506.930; 0.000_0_0; 49011; 49005; sudo; /usr/bin/sudo; 0; 0; 1003; 4; file; login.defs; /etc/login.defs; 131246; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ''',
+    '''35559700; 1471074506.950(Sat Aug 13 03:48:26 2016); sendto(44); 78;  a[0]=0x5 a[1]=0x55dbbfbdc420 a[2]=0x4e a[3]=0x4000; 49011_1471074506.930; 0.000_0_0; 49011; 49005; sudo; /usr/bin/sudo; 0; 0; 1003; 5; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; '''
+]
+
+# logs = [
+#     '''type=SYSCALL msg=audit(1471074506.946:35559676): arch=c000003e syscall=1 success=yes exit=8 a0=4 a1=7fc786f02cb8 a2=8 a3=0 items=0 ppid=1 pid=1236 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=4294967295 comm="gmain" exe="/usr/lib/accountsservice/accounts-daemon" key=(null)'''
+# ]
+
+t=0
+for log in logs:
+    l = LogHandler({})
+    e = l.encode(log, "test"+str(t))
+    t+=1
+    print(e)

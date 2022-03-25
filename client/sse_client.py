@@ -63,6 +63,8 @@ SEARCH = "search"
 UPDATE = "update"
 ADD = "add"
 
+CSV_INPUT = 1
+
 # Default url is localhost, and the port 5000 is set by Flask on the server
 DEFAULT_URL = "http://127.0.0.1:5000/"
 
@@ -244,6 +246,8 @@ class SSE_Client():
 
 
     def update(self, filename):
+        # print("Initial scanning {}\n".format(filename))
+        # os.system('./init_scan {}'.format(filename))
         file = FileHandler(filename)
         segments = file.split_file()
         file.encode_logs()
@@ -253,7 +257,7 @@ class SSE_Client():
         indexes = self.update_index(lookup_table)
         for index in indexes:
             message = jmap.pack(UPDATE, index[0], index[1])
-            print(message)
+            # print(message)
             r = self.send(UPDATE, message)
             data = r.json()
             results = data['results']
