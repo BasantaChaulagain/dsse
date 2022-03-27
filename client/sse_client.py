@@ -288,7 +288,6 @@ class SSE_Client():
     def update_index(self, lookup_table):
 
         vdict = lookup_table[1]
-        vdict_size = len(vdict)
         for key, value in vdict.items():  
             index = dbm.open("indexes/"+key+"_index", "c")
             index_IDs = dbm.open("indexes/"+key+"_index_IDs", "c")
@@ -312,7 +311,8 @@ class SSE_Client():
             index_IDs.close()
 
         indexes = []
-        for i in range(vdict_size):
+        vdict_keys = vdict.keys()
+        for i in vdict_keys:
             ind = "indexes/"+str(i)+"_index"
             ind_id = "indexes/"+str(i)+"_index_IDs"
             index = self.encryptIndex(ind, ind_id)

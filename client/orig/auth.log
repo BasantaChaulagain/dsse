@@ -1,7 +1,0 @@
-Nov 16 10:54:23 lab301-iMac sshd[973]: Server listening on 0.0.0.0 port 23.
-Nov 16 10:54:23 lab301-iMac sshd[973]: Server listening on :: port 22.
-Nov 16 10:54:27 lab301-iMac gdm-launch-environment]: pam_unix(gdm-launch-environment:session): session opened for user gdm by (uid=0)
-Nov 16 10:54:28 lab301-iMac systemd-logind[795]: New session c1 of user gdm.
-Nov 16 10:54:28 lab301-iMac systemd: pam_unix(systemd-user:session): session opened for user gdm by (uid=0)
-Nov 16 10:54:53 lab301-iMac polkitd(authority=local): Registered Authentication Agent for unix-session:c1 (system bus name :1.53 [/usr/bin/gnome-shell], object path /org/freedesktop/PolicyKit1/AuthenticationAgent, locale en_US.UTF-8)
-Nov 16 10:54:28 lab301-iMac systemd-logind[795]: New session c2 of user gdm.

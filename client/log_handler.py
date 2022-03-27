@@ -108,7 +108,20 @@ class LogHandler:
                     schema_id = self.get_schema_id(value) 
                     self.lt_string = self.lt_string+key_value[0]+'='+'\x11'+schema_id+' '
     
-    def unparse_log(self, ts, variables):
+    # function to unparse log that is in csv format
+    def unparse_log_csv(self, ts, eid, variables):
+        patt = re.compile(r'\x11\d+')
+        items = patt.findall(self.lt_string)
+        updated_items =[]
+        for each, var in zip(items, variables):
+            each = re.sub(r'\x11\d+', var, each)
+            updated_items.append(each)
+        log = '; '.join(updated_items)
+        log = eid + "; " + ts + "; " + log + ";"
+        return(log)
+
+    # function to unparse audit log in key-value pair
+    def unparse_log_kv(self, ts, variables):
         patt = re.compile(r'\w+\=\x11\d+')
         kv_pair = patt.findall(self.lt_string)
         updated_kv =[]
@@ -156,7 +169,6 @@ class LogHandler:
         # get each schema_type from lt_string and lookup each variables in variable list with the the vdict of particular schema type.
         variable_ids = ""
         pattern = r'(?:\x11)(\d+)'
-        print("ltstring", self.lt_string)
         match = re.findall(pattern, self.lt_string)
         if match and len(match)==len(self.variable):
             for schema_id, variable in zip (match, self.variable):
@@ -185,12 +197,9 @@ class LogHandler:
         self.parse_log(log)
         self.write_to_vdict(segment)
         self.write_to_ltdict(segment)
-        print(self.ltdict)
-        print(self.vdict)
         variable_ids = self.get_variable_ids()
         logtype_id = self.get_log_type_id(self.lt_string)
         if (CSV_INPUT):
-            print(logtype_id, variable_ids)
             encoded_message = ts + ":" + eid + "," + logtype_id + "," + variable_ids
         else:
             encoded_message = ts + "," + logtype_id + "," + variable_ids
@@ -200,30 +209,42 @@ class LogHandler:
     def decode(self, encoded_log):
         try:
             splitted = encoded_log.split(",",2)
-            ts = splitted[0]
+            if(CSV_INPUT):
+                ts = splitted[0].split(":")[0]
+                eid = splitted[0].split(":")[1]
+            else:
+                ts = splitted[0]
             logtype_id = splitted[1]
             self.variable_ids = splitted[2].split(',')
+            # look from here:
             self.lt_string = self.ltdict.get(logtype_id)[0]
             variables = self.get_variables_from_id()
-            log = self.unparse_log(ts, variables)
+            if (CSV_INPUT):
+                log = self.unparse_log_csv(ts, eid, variables)
+            else:
+                log = self.unparse_log_kv(ts, variables)
             return(log)
         except:
             # print("unable to decode:\t",encoded_log)
             return ""
 
 
-logs = [
-    '''35559695; 1471074506.950(Sat Aug 13 03:48:26 2016); read(0); 4096;  a[0]=0x4 a[1]=0x7fc46876a000 a[2]=0x1000; 49011_1471074506.930; 0.000_0_0; 49011; 49005; sudo; /usr/bin/sudo; 0; 0; 1003; 4; file; login.defs; /etc/login.defs; 131246; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ''',
-    '''35559700; 1471074506.950(Sat Aug 13 03:48:26 2016); sendto(44); 78;  a[0]=0x5 a[1]=0x55dbbfbdc420 a[2]=0x4e a[3]=0x4000; 49011_1471074506.930; 0.000_0_0; 49011; 49005; sudo; /usr/bin/sudo; 0; 0; 1003; 5; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; '''
-]
-
 # logs = [
-#     '''type=SYSCALL msg=audit(1471074506.946:35559676): arch=c000003e syscall=1 success=yes exit=8 a0=4 a1=7fc786f02cb8 a2=8 a3=0 items=0 ppid=1 pid=1236 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=4294967295 comm="gmain" exe="/usr/lib/accountsservice/accounts-daemon" key=(null)'''
+#     '''35559695; 1471074506.950(Sat Aug 13 03:48:26 2016); read(0); 4096;  a[0]=0x4 a[1]=0x7fc46876a000 a[2]=0x1000; 49011_1471074506.930; 0.000_0_0; 49011; 49005; sudo; /usr/bin/sudo; 0; 0; 1003; 4; file; login.defs; /etc/login.defs; 131246; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ''',
+#     '''35559700; 1471074506.950(Sat Aug 13 03:48:26 2016); sendto(44); 78;  a[0]=0x5 a[1]=0x55dbbfbdc420 a[2]=0x4e a[3]=0x4000; 49011_1471074506.930; 0.000_0_0; 49011; 49005; sudo; /usr/bin/sudo; 0; 0; 1003; 5; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; '''
 # ]
 
-t=0
-for log in logs:
-    l = LogHandler({})
-    e = l.encode(log, "test"+str(t))
-    t+=1
-    print(e)
+# enc_logs = [
+#             '''1471074506.950:35559695,0,0,5,0,0,0,2,4,0,0,0,0,3,1,1,2,1,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0'''
+# ]
+
+# '''1471074506.946:35559676,0,2,1,1,4,0,3,0,0,3,1,1,4,5,2,1,1,1,1,1,1,1,1,0,2,0,1,1'''
+
+
+# lookup = [{'0': ['\x110 \x119 \x113 \x115 \x116 \x119 \x119 \x118 \x117 \x119 \x119 \x119 \x119 \x118 \x118 \x117 \x119 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 ', 1, ['test0']]},
+#         {'12': {'0': ['', 1, ['test0']]}, '0': {'0': ['read(0)', 1, ['test0']]}, '8': {'0': ['sudo', 1, ['test0']], '1': ['file', 1, ['test0']], '2': ['login.defs', 1, ['test0']]}, '9': {'0': ['0', 1, ['test0']], '1': ['4', 1, ['test0']], '2': ['49011', 1, ['test0']], '3': ['1003', 1, ['test0']], '4': ['49005', 1, ['test0']], '5': ['4096', 1, ['test0']], '6': ['131246', 1, ['test0']]}, '7': {'0': ['/usr/bin/sudo', 1, ['test0']], '1': ['/etc/login.defs', 1, ['test0']]}, '5': {'0': ['49011_1471074506.930', 1, ['test0']]}, '6': {'0': ['0.000_0_0', 1, ['test0']]}, '3': {'0': ['a[0]=0x4 a[1]=0x7fc46876a000 a[2]=0x1000', 1, ['test0']]}}]
+
+# for log in enc_logs:
+#     l = LogHandler(lookup)
+#     e = l.decode(log)
+#     print(e)
