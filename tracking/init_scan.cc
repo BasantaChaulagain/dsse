@@ -33,23 +33,78 @@ void set_pid(int tid, int pid)
 {
 		struct thread_process_t *ut;
 		int ppid;
+		// printf("%d-%d-%d\n", tid, pid);
 
 		HASH_FIND_INT(thread2process_table, &pid, ut);  /* looking for parent thread's pid */
 		if(ut == NULL) {
 				ppid = pid;
-		} else ppid = ut->pid;
-
+		} else {
+			ppid = ut->pid;
+		}
 		ut = NULL;
 
 		HASH_FIND_INT(thread2process_table, &tid, ut);  /* id already in the hash? */
 		if (ut == NULL) {
+				// printf("tid doesn't exist for: %d\n", tid);
 				ut = (thread_process_t*) malloc(sizeof(thread_process_t));
 				ut->tid = tid;
 				ut->pid = ppid;
 				HASH_ADD_INT(thread2process_table, tid, ut);
+				// printf("addition to table: tid-%d, pid-%d\n", tid, ppid);
 		} else {
+				// printf("tid exists for: %d\n", tid);
 				ut->pid = ppid;
 		}
+}
+
+void fd_pipe_handler_(long tid, int sysno, long pid, long eid, int fd0_num, int fd1_num){
+		//SYS_pipe, SYS_pipe2
+		process_table_t *pt;
+		fd_table_t *ft;
+		fd_el_t *fd_el0, *fd_el1;
+
+		pid	= get_pid(tid);
+		pt = get_process_table(pid);
+
+		if (fd0_num){
+			fd_el0 = new fd_el_t;
+			fd_el0->eid = eid;
+			fd_el0->num_path = 0;
+			fd_el0->is_pair = false;
+			fd_el0->is_pipe = true;
+			fd_el0->piped_fd = fd0_num;
+		}
+
+		if (fd1_num){
+			fd_el1 = new fd_el_t;
+			fd_el1->eid = eid;
+			fd_el1->num_path = 0;
+			fd_el1->is_pair = false;
+			fd_el1->is_pipe = true;
+			fd_el1->piped_fd = fd1_num;
+		}
+
+		HASH_FIND_INT(pt->fd_table, &fd0_num, ft);
+
+		if(ft == NULL) {
+				ft = (fd_table_t *)malloc(sizeof(fd_table_t));
+				ft->fd = fd0_num;
+				ft->fd_el = NULL;
+				// printf("added fd0: %d to pid: %d\n", fd0_num, pid);
+				HASH_ADD_INT(pt->fd_table, fd, ft);
+		}
+		DL_APPEND(ft->fd_el, fd_el0);
+
+		HASH_FIND_INT(pt->fd_table, &fd1_num, ft);
+
+		if(ft == NULL) {
+				ft = (fd_table_t *)malloc(sizeof(fd_table_t));
+				ft->fd = fd1_num;
+				ft->fd_el = NULL;
+				// printf("added fd1: %d to pid: %d\n", fd1_num, pid);
+				HASH_ADD_INT(pt->fd_table, fd, ft);
+		}
+		DL_APPEND(ft->fd_el, fd_el1);
 }
 
 void fd_pipe_handler(char *buf, int tid, int sysno)
@@ -62,7 +117,7 @@ void fd_pipe_handler(char *buf, int tid, int sysno)
 		int pid, fd0, fd1;
 		long eid;
 
-	 pid	= get_pid(tid);
+	 	pid	= get_pid(tid);
 		pt = get_process_table(pid);
 
 		ptr = strstr(buf, ":");
@@ -96,6 +151,7 @@ void fd_pipe_handler(char *buf, int tid, int sysno)
 				ft = (fd_table_t *)malloc(sizeof(fd_table_t));
 				ft->fd = fd0;
 				ft->fd_el = NULL;
+				// printf("added fd0: %d to pid: %d\n", fd0, pid);
 				HASH_ADD_INT(pt->fd_table, fd, ft);
 		}
 		DL_APPEND(ft->fd_el, fd_el0);
@@ -106,9 +162,49 @@ void fd_pipe_handler(char *buf, int tid, int sysno)
 				ft = (fd_table_t *)malloc(sizeof(fd_table_t));
 				ft->fd = fd1;
 				ft->fd_el = NULL;
+				// printf("added fd1: %d to pid: %d\n", fd1, pid);
 				HASH_ADD_INT(pt->fd_table, fd, ft);
 		}
 		DL_APPEND(ft->fd_el, fd_el1);
+}
+
+void fd_pair_handler_(long tid, int sysno, long pid, long eid, long ret, long a0, int fd0_num, int fd1_num){
+		//SYS_socketpair, SYS_dup, SYS_dup2, SYS_dup3
+		process_table_t *pt;
+		fd_table_t *ft;
+		fd_el_t *fd_el;
+		int fd, old_fd;
+
+		pid	= get_pid(tid);
+		pt = get_process_table(pid);
+
+		fd_el = new fd_el_t;
+		fd_el->eid = eid;
+		fd_el->num_path = 0;
+		fd_el->is_pair = true;
+		fd_el->is_pipe = false;
+
+		if(sysno == SYS_dup || sysno == SYS_dup2 || sysno == SYS_dup3)
+		{
+				fd = ret;
+				old_fd = a0;
+				fd_el->paired_fd = old_fd;
+		} else if (sysno == SYS_socketpair) {
+			fd = fd0_num;
+			fd_el->paired_fd = fd1_num;
+				//assert(0);
+		} 
+		
+		HASH_FIND_INT(pt->fd_table, &fd, ft);
+
+		if(ft == NULL) {
+				ft = (fd_table_t *)malloc(sizeof(fd_table_t));
+				ft->fd = fd;
+				ft->fd_el = NULL;
+				// printf("%d - %d: added fd_p: %d to pid: %d\n", sysno, eid, fd, pid);
+				HASH_ADD_INT(pt->fd_table, fd, ft);
+		}
+		DL_APPEND(ft->fd_el, fd_el);
 }
 
 void fd_pair_handler(char *buf, int tid, int sysno)
@@ -121,7 +217,7 @@ void fd_pair_handler(char *buf, int tid, int sysno)
 		int pid, fd, old_fd;
 		long eid;
 
-	 pid	= get_pid(tid);
+	 	pid	= get_pid(tid);
 		pt = get_process_table(pid);
 
 		ptr = strstr(buf, ":");
@@ -152,9 +248,33 @@ void fd_pair_handler(char *buf, int tid, int sysno)
 				ft = (fd_table_t *)malloc(sizeof(fd_table_t));
 				ft->fd = fd;
 				ft->fd_el = NULL;
+				// printf("%d - %d: added fd_p: %d to pid: %d\n", sysno, eid, fd, pid);
 				HASH_ADD_INT(pt->fd_table, fd, ft);
 		}
 		DL_APPEND(ft->fd_el, fd_el);
+}
+
+void socket_fd_handler_(long eid, char* fd0_ip, fd_table_t *ft){
+		int num;
+		fd_el_t *fd_el;
+
+		fd_el = new fd_el_t;
+		fd_el->eid = eid;
+		fd_el->is_socket = true;
+		fd_el->num_path = 1;
+		fd_el->is_pair = false;
+		fd_el->is_pipe = false;
+
+		if(fd0_ip != " ") {
+				char *ptr = strstr(fd0_ip, "path");
+				if (ptr != NULL)
+					strncpy(ptr, "file", 4);
+				// std::string str(fd0_ip+1);
+				fd_el->path[0] = fd0_ip+1;
+				debug("saddr: %s\n", fd_el->path[0].c_str());
+				DL_APPEND(ft->fd_el, fd_el);
+		}
+		// fd_el->~fd_el_t();
 }
 
 void socket_fd_handler(char *buf, long eid, fd_table_t *ft)
@@ -178,6 +298,40 @@ void socket_fd_handler(char *buf, long eid, fd_table_t *ft)
 		} else {
 				fd_el->~fd_el_t();
 		}
+}
+
+void file_fd_handler_(long eid, char* cwd, char* fd0_name, char* fd1_name, char* fd0_type, char* fd1_type, long fd0_inode, long fd1_inode, fd_table_t *ft){
+		int num;
+		fd_el_t *fd_el;
+
+		//fd_el = (fd_el_t*) malloc (sizeof(fd_el_t));
+		fd_el = new fd_el_t;
+		fd_el->eid = eid;
+		fd_el->is_socket = false;
+		fd_el->is_pair = false;
+		fd_el->is_pipe = false;
+
+		if(cwd != " ") {
+				fd_el->cwd = cwd;
+		} else {
+				fprintf(stderr, "File open log does not have \"CWD\". Try again after sort the log file with \"sortlog\" command.\n");
+				return;
+		}
+
+		if (fd0_name != " " && fd0_type != " " && fd0_inode){
+				num = 0;
+				fd_el->path[num] = fd0_name;
+				fd_el->pathtype[num] = fd0_type;
+				fd_el->inode[num] = fd0_inode;
+		}
+		if (fd1_name != " " && fd1_type != " " && fd1_inode){
+				num = 1;
+				fd_el->path[num] = fd1_name;
+				fd_el->pathtype[num] = fd1_type;
+				fd_el->inode[num] = fd1_inode;
+		}
+		fd_el->num_path = num+1;
+		DL_APPEND(ft->fd_el, fd_el);
 }
 
 void file_fd_handler(char *buf, long eid, fd_table_t *ft)
@@ -217,6 +371,43 @@ void file_fd_handler(char *buf, long eid, fd_table_t *ft)
 		DL_APPEND(ft->fd_el, fd_el);
 }
 
+void fd_handler_(long tid, int sysno, long pid, long eid, long a0, long ret, char* cwd, char* fd0_name, char* fd1_name, char* fd0_type, char* fd1_type, long fd0_inode, long fd1_inode, char* fd0_ip){
+		//SYS_open, SYS_openat, SYS_creat, SYS_accept, SYS_connect
+		char *ptr;
+		int fd;
+		process_table_t *pt;
+		fd_table_t *ft;
+
+		pid = get_pid(tid);
+
+		if(sysno == 42) { // connect: a0 is a fd.
+				fd = a0;
+		} else {
+				fd = ret;
+		}
+		
+		pt = get_process_table(pid);
+		
+		HASH_FIND_INT(pt->fd_table, &fd, ft);
+		if(ft == NULL) {
+				ft = (fd_table_t *)malloc(sizeof(fd_table_t));
+				ft->fd = fd;
+				ft->fd_el = NULL;
+				// printf("added fd: %d to pid: %d\n", fd, pid);
+				HASH_ADD_INT(pt->fd_table, fd, ft);
+		}
+		if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_creat) {
+				file_fd_handler_(eid, cwd, fd0_name, fd1_name, fd0_type, fd1_type, fd0_inode, fd1_inode, ft);
+		} 
+		else {
+			debug("Socket FD handler event %ld, pid %d, sysno %d, fd0 %s\n", eid, pid, sysno, fd0_ip);
+				socket_fd_handler_(eid, fd0_ip, ft);
+		}
+		
+		debug("FD handler event %ld, pid %d, sysno %d\n", eid, pid, sysno); 
+
+}
+
 void fd_handler(char *buf, int tid, int sysno)
 {
 		//SYS_open, SYS_openat, SYS_creat, SYS_accept, SYS_connect
@@ -226,7 +417,7 @@ void fd_handler(char *buf, int tid, int sysno)
 		process_table_t *pt;
 		fd_table_t *ft;
 
-	 pid	= get_pid(tid);
+	 	pid	= get_pid(tid);
 		ptr = strstr(buf, ":");
 		eid = strtol(ptr+1, NULL, 10);
 
@@ -245,6 +436,7 @@ void fd_handler(char *buf, int tid, int sysno)
 				ft = (fd_table_t *)malloc(sizeof(fd_table_t));
 				ft->fd = fd;
 				ft->fd_el = NULL;
+				// printf("added fd: %d to pid: %d\n", fd, pid);
 				HASH_ADD_INT(pt->fd_table, fd, ft);
 		}
 		if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_creat) {
@@ -254,6 +446,95 @@ void fd_handler(char *buf, int tid, int sysno)
 		}
 		
 //		debug("FD handler event %ld, pid %d, sysno %d\n", eid, pid, sysno); 
+}
+
+int get_sysno(char *syscall){
+	if (strcmp(syscall, " UBSI_ENTRY")==0 || strcmp(syscall, " UBSI_EXIT")==0) return -1;
+	char *ptr = strtok(syscall, "(");
+	ptr = strtok(NULL, ")");
+
+	return atoi(ptr);
+}
+
+int get_tid(char *tid){
+	char *ptr = strtok(tid, "_");
+	return atoi(ptr);
+}
+
+void init_event_handler(char *buf)
+{
+	int i = 0, sysno;
+	char list[34][200], *ptr;
+	long a0, a1, a2, pid, ppid, ret, tid, eid;
+	ptr = strtok(buf, ";");
+
+	while (ptr != NULL){
+		strcpy(list[i++], ptr);
+		ptr = strtok(NULL, ";");
+	}
+	num_syscall++;
+	
+	// Fields from the event
+	eid = strtol(list[0], NULL, 10);
+	sysno = get_sysno(list[2]);
+	tid = get_tid(list[5]);
+	pid = strtol(list[7], NULL, 10);
+	ppid = strtol(list[8], NULL, 10);
+	ret = strtol(list[3], NULL, 10);
+
+	ptr = strstr(list[4], "a[2]=");
+	if (ptr){
+		ptr = strtok(ptr, " ");
+		a2 = strtol(ptr+5, NULL, 16);
+	}
+
+	ptr = strstr(list[4], "a[1]=");
+	if (ptr){
+		ptr = strtok(ptr, " ");
+		a1 = strtol(ptr+5, NULL, 16);
+	}
+
+	ptr = strstr(list[4], "a[0]=");
+	if (ptr){
+		ptr = strtok(ptr, " ");
+		a0 = strtol(ptr+5, NULL, 16);
+	}
+
+	if(sysno == SYS_clone || sysno == SYS_fork || sysno == SYS_vfork) // clone or fork
+	{
+		if(sysno == SYS_clone && a2 > 0) { // thread_creat event
+			set_pid(ret, pid);
+		}
+	} 
+	else if( sysno == SYS_execve || sysno == 322 || sysno == SYS_exit || sysno == SYS_exit_group) { // execve, exit or exit_group
+		if(sysno == SYS_exit_group) { // exit_group call
+				// TODO: need to finish all thread in the process group
+				process_group_exit(tid);
+		}
+		process_exit(tid);
+	} 
+	else if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_creat || sysno == SYS_accept || sysno == SYS_connect || sysno == SYS_accept4) {
+			char *cwd = list[28];
+			char *fd0_name = list[17];
+			char *fd1_name = list[24];
+			char *fd0_ip = list[19];
+			char *fd0_type = list[15];
+			char *fd1_type = list[22];
+			long fd0_inode = strtol(list[18], NULL, 10);
+			long fd1_inode = strtol(list[25], NULL, 10);
+
+			fd_handler_(tid, sysno, pid, eid, a0, ret, cwd, fd0_name, fd1_name, fd0_type, fd1_type, fd0_inode, fd1_inode, fd0_ip);
+	} 
+	else if(sysno == SYS_socketpair || sysno == SYS_dup || sysno == SYS_dup2 || sysno == SYS_dup3) {
+			int fd0_num = atoi(list[14]);
+			int fd1_num = atoi(list[21]);
+			fd_pair_handler_(tid, sysno, pid, eid, ret, a0, fd0_num, fd1_num);
+	} 
+	else if (sysno == SYS_pipe || sysno == SYS_pipe2) {
+			long fd0_num = strtol(list[14], NULL, 10);
+			long fd1_num = strtol(list[21], NULL, 10);
+			fd_pipe_handler_(tid, sysno, pid, eid, fd0_num, fd1_num);
+	} 
 }
 
 void init_syscall_handler(char *buf)
@@ -522,6 +803,7 @@ int buffering(char *buf, long *size)
 		if(last_eid == eid) {
 				strcat(stag_buf, buf);
 		} else {
+			// printf("stag_buf: %s\n", stag_buf);
 				if(strncmp(stag_buf, "type=SYSCALL",12) == 0) {
 						init_syscall_handler(stag_buf);
 						*size = strlen(stag_buf);
@@ -804,6 +1086,7 @@ int save_fd_table(fd_table_t* fd_table, FILE *fp)
 		HASH_ITER(hh, fd_table, ft, tmp) {
 				fwrite(&(ft->fd), sizeof(int), 1, fp);
 				debugnow("save_fd_list: fd %d\n", ft->fd);
+				// printf("%d\t", ft->fd);
 				save_fd_list(ft->fd_el, fp);
 		}
 
@@ -819,9 +1102,7 @@ void load_process_table(FILE *fp)
 		n_fd_table = n_unit_table = n_unit_cluster = 0;
 
 		fread(&num, sizeof(unsigned int), 1, fp);
-		debug("load_process_table: num_proc: %d\n", num);
-		printf("Process table: %d elements loaded.\n", num);
-		
+		debug("load_process_table: num_proc: %d\n", num);		
 		for(int i = 0; i < num; i++)
 		{
 				loadBar(i, num, 10, 50);
@@ -857,17 +1138,19 @@ void save_process_table(FILE *fp)
 
 		fwrite(&num, sizeof(unsigned int), 1, fp);
 		debug("save_process_table: num_proc: %d\n", num);
-
+		// printf("\n----------process table:\n");
 		HASH_ITER(hh, process_table, pt, tmp) {
 				fwrite(&(pt->pid), sizeof(int), 1, fp);
 				fwrite(&(pt->next_cluster_id), sizeof(int), 1, fp);
 
 				debug("\tsave_process_table: proc %d\n", pt->pid);
+				// printf("%d\t=====\t", pt->pid);
 
 				n_unit_cluster += save_unit_cluster(pt->unit_cluster, fp);
 				n_unit_table += save_unit_table(pt->unit_table, fp);
 				n_fd_table += save_fd_table(pt->fd_table, fp);
 		}
+		// printf("\n----------------\n");
 		printf("  Process table: %d elements saved.\n", num);
 		printf("    Unit_cluter: %d elements saved.\n", n_unit_cluster);
 		printf("    Unit_table: %d elements saved.\n", n_unit_table);
@@ -918,14 +1201,17 @@ void save_thread2process_table(FILE *fp)
 		int i=0;
 
 		debug("size of thread2process table %u\n", num);
+		// printf("----------thread to process table:\n");
 		fwrite((void*)&num, sizeof(unsigned int), 1, fp);	
 		HASH_ITER(hh, thread2process_table, pt, tmp) {
 				//if(pt->pid != pt->tid) debug("%d-%d\n", pt->pid, pt->tid);
-				debug("tid:%d-pid:%d\n", pt->tid, pt->pid);
+				debug("tid:%d-pid:%d\t", pt->tid, pt->pid);
+				// printf("%d-%d\t", pt->tid, pt->pid);
 				t[i].pid = pt->pid;
 				t[i].tid = pt->tid;
 				i++;
 		}
+		// printf("\n----------------\n");
 		debug("i = %d, num = %d\n", i, num);
 		fwrite((void*)t, sizeof(temp_t), num, fp);
 		free(t);
@@ -984,7 +1270,7 @@ int init_scan(const char *name)
 		if((fp=fopen(name, "r")) ==NULL) {
 				return 0;
 		}
-				
+		
 		is_init_scan = true;
 
 		long stag_buf_size =0;
@@ -1000,23 +1286,23 @@ int init_scan(const char *name)
 		fgets(buf, 1048576, fp);
 		while(!feof(fp)) 
 		{
-				if(i++ > 10000) {
+			if(i++ > 10000) {
 						loadBar(fcur, fend, 10, 50);
 						i = 0;
 			 }
 
-				if(buffering(buf, &stag_buf_size)) {
-						//num_events++;
-				}
-				//buffering(NULL);
+				// buffering(buf, &stag_buf_size);
+				
+				init_event_handler(buf);
 
 				fcur = ftell(fp);
+				// printf("fcur is %ld\n", fcur);
 				fgets(buf, 1048576, fp);
 		}
 
-		if(buffering(NULL, &stag_buf_size)) {
-				//num_events++;
-		}
+		// if(buffering(NULL, &stag_buf_size)) {
+		// 		//num_events++;
+		// }
 		fclose(fp);
 		
 		//printf("total events: %u\n", num_events);

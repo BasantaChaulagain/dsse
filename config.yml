@@ -1,10 +1,9 @@
-# postgres database setting
+GLOBAL:
+  CSV_INPUT: 1
+  
 PG_DATABASE:
-  server: localhost
-  port: 5432
   dbname: DSSE
-  username: postgres
   password: postgres
-
-
-
+  port: 5432
+  server: localhost
+  username: postgres

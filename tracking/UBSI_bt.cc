@@ -169,8 +169,6 @@ void bt_syscall_handler(char *buf)
 		int sysno;
 
 		ptr = strstr(buf, " syscall=");
-		// printf("buf: %s", buf);
-		// printf("ptr: %s", ptr);
 		assert(ptr);
 		sysno = strtol(ptr+9, NULL, 10);
 	
@@ -211,27 +209,6 @@ void reverse_scan(FILE *fp)
 				buf[fp_table[i][1]] = '\0';
 				bt_syscall_handler(buf);
 		}
-}
-
-void test_scan(int user_pid, long user_inode){
-	FILE* pp;
-	printf("test scan\n");
-	string query = "python client.py -s ";
-	string pid = to_string(user_pid);
-	pp = popen(query.append(pid).c_str(), "r");
-	if (pp != NULL){
-		while(1){
-			char* line;
-			char buf[1000];
-			line = fgets(buf, sizeof buf, pp);
-			if (line ==NULL) break;
-			char* ptr = strstr(line, " syscall=");
-			// printf("line: %s", line);
-			if (ptr)
-				bt_syscall_handler(line);
-		}
-	}
-	pclose(pp);
 }
 
 void test_fnc()
@@ -329,8 +306,7 @@ int main(int argc, char** argv)
 				if(user_eid < 0) return 1;
 				taint_inode(user_inode, user_eid+1, path);
 		}
-		// reverse_scan(fp);
-		test_scan(user_pid, user_inode);
+		reverse_scan(fp);
 
 		fclose(fp);
 	

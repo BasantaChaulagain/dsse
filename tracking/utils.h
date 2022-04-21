@@ -4,10 +4,10 @@
 #include <string>
 
 #define MAX_PATH 10
-//#define DEBUGBT
-//#define DEBUGTAINT
-//#define DEBUGNOW 1
-//#define DEBUG 1
+// #define DEBUGBT
+// #define DEBUGTAINT
+// #define DEBUGNOW 1
+// #define DEBUG 1
 
 #ifdef DEBUGBT
 		#define DEBUGANY
