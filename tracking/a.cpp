@@ -47,12 +47,16 @@ int main()
 	// ptr = strtok(ptr, " ");
 	// printf("ptr: %s\n", ptr+5);
 
-	char str[100] = " path:/var/run/nscd/socket";
-	char *ptr = strstr(str, "path");
-	if (ptr != NULL)
-		strncpy(ptr, "file", 4);
-	printf("%s\n", str+1);
-	return 0;
+	time_t t;
+	unsigned int mil;
+	char str[100] = " 1471074506.946(Sat Aug 13 03:48:26 2016)";
+	t = strtol(str+1, NULL, 10);
+	printf("t:%ld\t", t);
+	char *ptr = strchr(str, '.');
+	// printf("%d\t", *ptr+1);
+	mil = atoi(ptr+1);
+	printf("m, %d\t", mil);
+	if (t>0) return 1;
+	else return 0;
 
-	string str;
 }

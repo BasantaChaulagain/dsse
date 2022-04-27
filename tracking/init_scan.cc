@@ -371,6 +371,36 @@ void file_fd_handler(char *buf, long eid, fd_table_t *ft)
 		DL_APPEND(ft->fd_el, fd_el);
 }
 
+void update_inode_table_(long eid, time_t time, unsigned int mil, long inode, char* type, char* name){
+		char *ptr;
+		inode_table_t *it;
+		
+		HASH_FIND_LONG(inode_table, &inode, it);
+		if(it == NULL)
+		{
+				it = new inode_table_t;
+				it->inode = inode;
+				inode_el_t el;
+				el.name = name;
+				el.created_eid = eid;
+				el.created_time = time;
+				el.created_time_mil = mil;
+				el.deleted_eid = el.deleted_time = el.deleted_time_mil = 0;
+				it->list.push_back(el);
+				HASH_ADD(hh, inode_table, inode, sizeof(long), it);
+		}
+
+		if(it->list.back().name != name){
+			inode_el_t el;
+			el.name = name;
+			el.created_eid = eid;
+			el.created_time = time;
+			el.created_time_mil = mil;
+			el.deleted_eid = el.deleted_time = el.deleted_time_mil = 0;
+			it->list.push_back(el);
+		}
+}
+
 void fd_handler_(long tid, int sysno, long pid, long eid, long a0, long ret, char* cwd, char* fd0_name, char* fd1_name, char* fd0_type, char* fd1_type, long fd0_inode, long fd1_inode, char* fd0_ip){
 		//SYS_open, SYS_openat, SYS_creat, SYS_accept, SYS_connect
 		char *ptr;
@@ -513,7 +543,7 @@ void init_event_handler(char *buf)
 		}
 		process_exit(tid);
 	} 
-	else if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_creat || sysno == SYS_accept || sysno == SYS_connect || sysno == SYS_accept4) {
+	else if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_accept || sysno == SYS_connect || sysno == SYS_accept4 || is_file_create(sysno) || is_file_delete(sysno) || is_file_rename(sysno) ) {
 			char *cwd = list[28];
 			char *fd0_name = list[17];
 			char *fd1_name = list[24];
@@ -522,8 +552,16 @@ void init_event_handler(char *buf)
 			char *fd1_type = list[22];
 			long fd0_inode = strtol(list[18], NULL, 10);
 			long fd1_inode = strtol(list[25], NULL, 10);
+			time_t time;
+			unsigned int mil;
+
+			extract_time_(list[1], &time, &mil);
 
 			fd_handler_(tid, sysno, pid, eid, a0, ret, cwd, fd0_name, fd1_name, fd0_type, fd1_type, fd0_inode, fd1_inode, fd0_ip);
+
+			if (is_file_create(sysno) || is_file_delete(sysno) || is_file_rename(sysno)){
+					update_inode_table_(eid, time, mil, fd0_inode, fd0_type, fd0_name);
+			}
 	} 
 	else if(sysno == SYS_socketpair || sysno == SYS_dup || sysno == SYS_dup2 || sysno == SYS_dup3) {
 			int fd0_num = atoi(list[14]);
@@ -1218,6 +1256,84 @@ void save_thread2process_table(FILE *fp)
 		printf("  Thread2process table: %d elements saved.\n", num);
 }
 
+
+void save_inode_list(vector<inode_el_t> list, FILE* fp){
+		unsigned int num = list.size();
+		debug("save inode_list size %d, fp %ld\n", num, ftell(fp));
+		fwrite(&num, sizeof(unsigned int), 1, fp);
+		if(num == 0) return;
+
+		for(auto elem: list){
+				fwrite(&elem.created_eid, sizeof(elem.created_eid), 1, fp);
+				fwrite(&elem.deleted_eid, sizeof(elem.deleted_eid), 1, fp);
+				save_string(elem.name, fp);
+				fwrite(&elem.created_time, sizeof(elem.created_time), 1, fp);
+				fwrite(&elem.deleted_time, sizeof(elem.deleted_time), 1, fp);
+				fwrite(&elem.created_time_mil, sizeof(elem.created_time_mil), 1, fp);
+				fwrite(&elem.deleted_time_mil, sizeof(elem.deleted_time_mil), 1, fp);
+				debug("eid %ld, name = %s,\n", elem.created_eid, elem.name.c_str());
+		}
+}
+
+void save_inode_table(FILE* fp){
+		inode_table_t *it, *tmp;
+		unsigned int num = HASH_COUNT(inode_table);
+
+		fwrite(&num, sizeof(unsigned int), 1, fp);
+		debug("save_inode_table: num_inode: %d\n", num);
+		if(num == 0) return;
+		HASH_ITER(hh, inode_table, it, tmp) {
+				debug("\tsave_inode_table: inode %ld\n", it->inode);
+				fwrite(&(it->inode), sizeof(long), 1, fp);
+				save_inode_list(it->list, fp);
+		}
+		printf("  Inode table: %d elements saved.\n", num);
+}
+
+void load_inode_list(inode_table_t *it, FILE* fp){
+		unsigned int num;
+		inode_el_t *elt;
+
+		fread(&num, sizeof(unsigned int), 1, fp);
+		debug("load inode_list size %d\n", num);
+		if(num == 0) return;
+
+		for(int i = 0; i < num; i++)
+		{
+				elt = new inode_el_t;
+				fread(&elt->created_eid, sizeof(elt->created_eid), 1, fp);
+				fread(&elt->deleted_eid, sizeof(elt->deleted_eid), 1, fp);
+				elt->name = load_string(fp);
+				fread(&elt->created_time, sizeof(elt->created_time), 1, fp);
+				fread(&elt->deleted_time, sizeof(elt->deleted_time), 1, fp);
+				fread(&elt->created_time_mil, sizeof(elt->created_time_mil), 1, fp);
+				fread(&elt->deleted_time_mil, sizeof(elt->deleted_time_mil), 1, fp);
+
+				it->list.push_back(*elt);
+		}
+		debug("load inode_list size %d done\n", num);
+}
+
+void load_inode_table(FILE *fp){
+		inode_table_t *it;
+		unsigned int num;
+
+		fread(&num, sizeof(unsigned int), 1, fp);
+		debug("load_inode_table: num_inode: %d\n", num);	
+		if(num == 0) return;
+
+		for(int i = 0; i < num; i++)
+		{
+				it = new inode_table_t;
+				it->list = {};
+				fread(&(it->inode), sizeof(long), 1, fp);
+				debug("load_inode_list: inode %ld\n", it->inode);
+				load_inode_list(it, fp);
+				HASH_ADD(hh, inode_table, inode, sizeof(long), it);
+		}
+		printf("  Inode table: %d elements loaded.\n", num);
+}
+
 int save_init_tables(const char *name)
 {
 		FILE *fp;
@@ -1229,6 +1345,7 @@ int save_init_tables(const char *name)
 		fwrite(&num_syscall, sizeof(long), 1, fp);
 		save_thread2process_table(fp);
 		save_process_table(fp);
+		save_inode_table(fp);
 		fclose(fp);
 		return 1;
 }
@@ -1244,11 +1361,13 @@ int load_init_tables(const char *name)
 		is_init_scan = true;
 		process_table = NULL;
 		thread2process_table = NULL;
+		inode_table = NULL;
 		fread(&num_syscall, sizeof(long), 1, fp);
 
 		printf("num_syscall = %ld\n", num_syscall);
 		load_thread2process_table(fp);
 		load_process_table(fp);
+		load_inode_table(fp);
 		fclose(fp);
 		is_init_scan = false;
 

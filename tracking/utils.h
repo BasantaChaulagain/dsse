@@ -51,6 +51,7 @@ extern const struct_sysent sysent[];
 void loadBar(long x, long n, int r, int w);
 string convert_time(time_t t, unsigned int mil);
 int extract_time(char *s, time_t *t, unsigned int *mil);
+int extract_time_(char *s, time_t *t, unsigned int *mil);
 string extract_sockaddr(char *ss, const char *needle, int size);
 string extract_string(char *s, const char *needle, int size);
 int extract_int(char *s, const char *needle, int size, int *store);

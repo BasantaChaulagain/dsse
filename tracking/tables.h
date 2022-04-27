@@ -146,6 +146,7 @@ void edge_socket_to_proc(int tid, int unitid, int socket);
 
 extern thread_process_t *thread2process_table;
 extern process_table_t *process_table;
+extern inode_table_t *inode_table;
 extern long **fp_table; 
 extern int fp_table_size;
 extern long num_syscall;

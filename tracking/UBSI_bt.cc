@@ -189,6 +189,43 @@ void bt_syscall_handler(char *buf)
 		if(is_fork_or_clone(sysno)) {
 				fork_handler(sysno, buf);
 		}
+		// return -1;
+}
+
+void table_scan(int user_pid, long user_inode){
+	FILE* pp;
+	printf("table scan\n");
+	string query = "python client.py -s ";
+	string search_string = "";
+
+	if (user_pid>0) search_string = to_string(user_pid);
+	else if (user_inode>0) search_string = to_string(user_inode);
+
+	while (search_string.c_str() != "" && search_string.c_str() != "-1"){
+		printf("search string: %s\n", search_string.c_str());
+		pp = popen(query.append(search_string).c_str(), "r");
+		printf("popen: result of search\n");
+		char *line;
+		while (fgets(line, 1000, pp) != NULL)
+    		printf("%s", line);
+		
+		if (pp != NULL){
+			while(1){
+				char* line;
+				char buf[1000];
+				line = fgets(buf, sizeof buf, pp);
+				if (line ==NULL) break;
+				char* ptr = strstr(line, " syscall=");
+				printf("line: %s", line);
+				if (ptr){
+					// search_string = to_string(bt_syscall_handler(line));
+					printf("%s\n", search_string.c_str());
+					break;
+				}
+			}
+		}
+		pclose(pp);
+	}
 }
 
 void reverse_scan(FILE *fp)
@@ -259,19 +296,21 @@ int main(int argc, char** argv)
 				}
 		}
 		
-		if(log_name == NULL || (user_inode == 0 && user_pid == 0)) {
+		if((log_name == NULL && init_table_name == NULL) || (user_inode == 0 && user_pid == 0)) {
 				printf("Usage: ./UBSI_bt [-i log_file] [-t init_table] [-f file_inode] [-p process_pid]\n");
 				return 0;
 		}
 
-		if((fp = fopen(log_name, "r")) == NULL) {
-				printf("Error: Cannot open the log file: %s\n", log_name);
-				printf("Usage: ./UBSI_bt [-i log_file] [-t init_table] [-f file_inode] [-p process_pid]\n");
-				return 0;
+		if (log_name != NULL){
+			if((fp = fopen(log_name, "r")) == NULL) {
+					printf("Error: Cannot open the log file: %s\n", log_name);
+					printf("Usage: ./UBSI_bt [-i log_file] [-t init_table] [-f file_inode] [-p process_pid]\n");
+					return 0;
+			}
+			fclose(fp);
 		}
-		fclose(fp);
 		
-		if(init_table_name == NULL) {
+		if(log_name != NULL && init_table_name == NULL) {
 				init_table_name = (char*) malloc(sizeof(char)*1024);
 				sprintf(init_table_name, "%s_init_table.dat", log_name);
 				printf("Init table name=%s\n", init_table_name);
@@ -285,15 +324,17 @@ int main(int argc, char** argv)
 		printf("Load init_table (%s)\n", init_table_name);
 		if(load_init_tables(init_table_name) == 0) load_init_table = false;
 		
-		if(!load_init_table) {
+		if(!load_init_table && log_name != NULL) {
 				if(!init_scan(log_name)) return 0;
 				printf("Save init_table (%s)\n", init_table_name);
 				save_init_tables(init_table_name);
 		}
 		
-		fp = fopen(log_name, "r");
-		generate_fp_table(fp);
-		print_fp_table();
+		if(log_name != NULL){
+				fp = fopen(log_name, "r");
+				generate_fp_table(fp);
+				print_fp_table();
+		}
 		
 		if(user_pid > 0) {
 				printf("user taint tid = %d, pid = %d\n", user_pid, get_pid(user_pid));
@@ -303,12 +344,19 @@ int main(int argc, char** argv)
 		if(user_inode > 0) {
 				string path;
 				long user_eid = check_inode_list(user_inode, &path);
+				printf("user_eid: %ld\n", user_eid);
 				if(user_eid < 0) return 1;
+				printf("inode tainted\n");
 				taint_inode(user_inode, user_eid+1, path);
 		}
-		reverse_scan(fp);
-
-		fclose(fp);
+		printf("fp: %p\n", fp);
+		if(fp != NULL){
+				reverse_scan(fp);
+				fclose(fp);
+		}
+		else
+				table_scan(user_pid, user_inode);
+				
 	
 #ifdef WITHOUT_UNIT
 		fp = fopen("AUDIT_bt.graph", "w");

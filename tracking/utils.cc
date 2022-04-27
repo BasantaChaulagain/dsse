@@ -62,6 +62,18 @@ string convert_time(time_t t, unsigned int mil)
 		return string(str + "." + tmp);
 }
 
+int extract_time_(char *s, time_t *t, unsigned int *mil)
+{
+		char *ptr;
+
+		*t = strtol(s+1, NULL, 10);
+		ptr = strchr(s, '.');
+		
+		*mil = atoi(ptr+1);
+		if (*t>0) return 1;
+		else return 0;
+}
+
 int extract_time(char *s, time_t *t, unsigned int *mil)
 {
 		char *ptr;
