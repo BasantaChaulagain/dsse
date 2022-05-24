@@ -1,0 +1,24 @@
+digraph callgraph {
+
+node[shape=oval, label="start_node"] P49025_-1;
+node[shape=oval, label="/bin/bash"] P29447_1;
+
+node[shape=box, label="/home/vagrant/TRACE/BIN/pine"] F705578_0;
+
+
+F705578_0 -> P49025_1;
+P29447_1 -> P49025_-1;
+}
+/* num_proc 2, num_file 1, num_socket 0, num_edge 2
+
+Tainted Units:
+  pid 49025, cluster -1, path start_node
+    cluster: all units
+  pid 29447, cluster 1, path /bin/bash
+    cluster: 29447--1, 
+
+Tainted Files:
+  inode 705578 (created_eid 0), name /home/vagrant/TRACE/BIN/pine
+
+Tainted Sockets:
+*/

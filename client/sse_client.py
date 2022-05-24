@@ -360,6 +360,7 @@ class SSE_Client():
 
     def search(self, query):
         query = query.split()
+        print("query: ", query)
 
         # Generate list of querys (may be just 1)
         L = []
@@ -408,7 +409,9 @@ class SSE_Client():
 
         # Send data and unpack results.
         r = self.send(SEARCH, message) 
+        # print("r: ", r)
         ret_data = r.json()
+        # print("ret_data: ", ret_data)
         results = ret_data['results']
         print("Results of SEARCH:")
 
@@ -416,6 +419,7 @@ class SSE_Client():
             print(results)
             return -1
 
+        # print(results)
         for i in results:
             # print(i.encode('latin1'))
             decrypted = self.decryptSegment(i.encode('latin1'), )
@@ -424,10 +428,12 @@ class SSE_Client():
             decrypted_ = decrypted.split('\n')[:-1]
             l = LogHandler(lookup_table)
             for each in decrypted_:
+                # print("before decoding", each)
                 decoded = l.decode(each)
                 for word in query:
                     if re.search(r'\b{}\b'.format(word), decoded):
                         print(decoded)
+                        # pass
 
     def PRF(self, k, data):
         if type(data) == str:

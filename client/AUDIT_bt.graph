@@ -1,400 +1,187 @@
 digraph callgraph {
 
-node[shape=oval, label="/home/vagrant/TRACE/BIN/pine"] P49025_1;
-node[shape=oval, label="/bin/bash"] P29447_1;
+node[shape=oval, label="start_node"] P49031_-1;
+node[shape=oval, label=" /usr/bin/sudo"] P49030_1;
+node[shape=oval, label=" /bin/bash"] P29447_1;
 
-node[shape=box, label="/home/vagrant/vsftp.file"] F701395_35630738;
-node[shape=box, label="/etc/mime.types"] F131255_0;
-node[shape=box, label="/etc/mailcap"] F191376_0;
-node[shape=box, label="/tmp/tmpfvQF2hq"] F69077_35612885;
-node[shape=box, label="/home/vagrant/mail/sent-mail"] F710761_0;
-node[shape=box, label="/home/vagrant/workspace/data/data99"] F701393_0;
-node[shape=box, label="/home/vagrant/workspace/data/data94"] F701388_0;
-node[shape=box, label="/home/vagrant/workspace/data/data76"] F701370_0;
-node[shape=box, label="/home/vagrant/workspace/data/data71"] F701365_0;
-node[shape=box, label="/home/vagrant/workspace/data/data62"] F701356_0;
-node[shape=box, label="/home/vagrant/workspace/data/data67"] F701361_0;
-node[shape=box, label="/home/vagrant/workspace/data/data9"] F701302_0;
-node[shape=box, label="/home/vagrant/workspace/data/data85"] F701379_0;
-node[shape=box, label="/home/vagrant/workspace/data/data80"] F701374_0;
-node[shape=box, label="/home/vagrant/workspace/data/data58"] F701351_0;
-node[shape=box, label="/home/vagrant/workspace/data/data53"] F701346_0;
-node[shape=box, label="/home/vagrant/workspace/data/data49"] F701342_0;
-node[shape=box, label="/home/vagrant/workspace/data/data44"] F701337_0;
-node[shape=box, label="/home/vagrant/workspace/data/data4"] F701297_0;
-node[shape=box, label="/home/vagrant/workspace/data/data35"] F701328_0;
-node[shape=box, label="/home/vagrant/workspace/data/data30"] F701323_0;
-node[shape=box, label="/home/vagrant/workspace/data/data26"] F701319_0;
-node[shape=box, label="/home/vagrant/workspace/data/data21"] F701314_0;
-node[shape=box, label="/home/vagrant/workspace/data/data17"] F701310_0;
-node[shape=box, label="/home/vagrant/workspace/data/data12"] F701305_0;
-node[shape=box, label="/home/vagrant/workspace/data/data11"] F701304_0;
-node[shape=box, label="/home/vagrant/workspace/data/data16"] F701309_0;
-node[shape=box, label="/home/vagrant/workspace/data/data20"] F701313_0;
-node[shape=box, label="/home/vagrant/workspace/data/data25"] F701318_0;
-node[shape=box, label="/home/vagrant/workspace/data/data3"] F701295_0;
-node[shape=box, label="/home/vagrant/workspace/data/data34"] F701327_0;
-node[shape=box, label="/home/vagrant/workspace/data/data39"] F701332_0;
-node[shape=box, label="/home/vagrant/workspace/data/data43"] F701336_0;
-node[shape=box, label="/home/vagrant/workspace/data/data48"] F701341_0;
-node[shape=box, label="/home/vagrant/workspace/data/data52"] F701345_0;
-node[shape=box, label="/home/vagrant/workspace/data/data57"] F701350_0;
-node[shape=box, label="/home/vagrant/workspace/data/data61"] F701355_0;
-node[shape=box, label="/home/vagrant/workspace/data/data66"] F701360_0;
-node[shape=box, label="/home/vagrant/workspace/data/data70"] F701364_0;
-node[shape=box, label="/home/vagrant/workspace/data/data75"] F701369_0;
-node[shape=box, label="/home/vagrant/workspace/data/data8"] F701301_0;
-node[shape=box, label="/home/vagrant/workspace/data/data84"] F701378_0;
-node[shape=box, label="/home/vagrant/workspace/data/data89"] F701383_0;
-node[shape=box, label="/home/vagrant/workspace/data/data93"] F701387_0;
-node[shape=box, label="/home/vagrant/workspace/data/data98"] F701392_0;
-node[shape=box, label="/home/vagrant/workspace/data/data97"] F701391_0;
-node[shape=box, label="/home/vagrant/workspace/data/data92"] F701386_0;
-node[shape=box, label="/home/vagrant/workspace/data/data88"] F701382_0;
-node[shape=box, label="/home/vagrant/workspace/data/data83"] F701377_0;
-node[shape=box, label="/home/vagrant/workspace/data/data79"] F701373_0;
-node[shape=box, label="/home/vagrant/workspace/data/data74"] F701368_0;
-node[shape=box, label="/home/vagrant/workspace/data/data7"] F701300_0;
-node[shape=box, label="/home/vagrant/workspace/data/data65"] F701359_0;
-node[shape=box, label="/home/vagrant/workspace/data/data60"] F701354_0;
-node[shape=box, label="/home/vagrant/workspace/data/data56"] F701349_0;
-node[shape=box, label="/home/vagrant/workspace/data/data51"] F701344_0;
-node[shape=box, label="/home/vagrant/workspace/data/data38"] F701331_0;
-node[shape=box, label="/home/vagrant/workspace/data/data29"] F701322_0;
-node[shape=box, label="/home/vagrant/workspace/data/data24"] F701317_0;
-node[shape=box, label="/home/vagrant/workspace/data/data2"] F701284_0;
-node[shape=box, label="/home/vagrant/workspace/data/data15"] F701308_0;
-node[shape=box, label="/home/vagrant/workspace/data/data10"] F701303_0;
-node[shape=box, label="/home/vagrant/workspace/data/data19"] F701312_0;
-node[shape=box, label="/home/vagrant/workspace/data/data23"] F701316_0;
-node[shape=box, label="/home/vagrant/workspace/data/data28"] F701321_0;
-node[shape=box, label="/home/vagrant/workspace/data/data32"] F701325_0;
-node[shape=box, label="/home/vagrant/workspace/data/data37"] F701330_0;
-node[shape=box, label="/home/vagrant/workspace/data/data69"] F701363_0;
-node[shape=box, label="/home/vagrant/workspace/data/data73"] F701367_0;
-node[shape=box, label="/home/vagrant/workspace/data/data78"] F701372_0;
-node[shape=box, label="/home/vagrant/workspace/data/data96"] F701390_0;
-node[shape=box, label="/home/vagrant/workspace/data/generate.c"] F701294_0;
-node[shape=box, label="/home/vagrant/workspace/data/data41"] F701334_0;
-node[shape=box, label="/home/vagrant/workspace/data/data46"] F701339_0;
-node[shape=box, label="/home/vagrant/workspace/data/data50"] F701343_0;
-node[shape=box, label="/home/vagrant/workspace/data/data55"] F701348_0;
-node[shape=box, label="/home/vagrant/workspace/data/data6"] F701299_0;
-node[shape=box, label="/home/vagrant/workspace/data/data64"] F701358_0;
-node[shape=box, label="/home/vagrant/workspace/data/data82"] F701376_0;
-node[shape=box, label="/home/vagrant/workspace/data/data87"] F701381_0;
-node[shape=box, label="/home/vagrant/workspace/data/data91"] F701385_0;
-node[shape=box, label="/home/vagrant/workspace/data/data95"] F701389_0;
-node[shape=box, label="/home/vagrant/workspace/data/data90"] F701384_0;
-node[shape=box, label="/home/vagrant/workspace/data/data86"] F701380_0;
-node[shape=box, label="/home/vagrant/workspace/data/data81"] F701375_0;
-node[shape=box, label="/home/vagrant/workspace/data/data77"] F701371_0;
-node[shape=box, label="/home/vagrant/workspace/data/data72"] F701366_0;
-node[shape=box, label="/home/vagrant/workspace/data/data68"] F701362_0;
-node[shape=box, label="/home/vagrant/workspace/data/data63"] F701357_0;
-node[shape=box, label="/home/vagrant/workspace/data/data59"] F701353_0;
-node[shape=box, label="/home/vagrant/workspace/data/data5"] F701298_0;
-node[shape=box, label="/home/vagrant/workspace/data/data45"] F701338_0;
-node[shape=box, label="/home/vagrant/workspace/data/data40"] F701333_0;
-node[shape=box, label="/home/vagrant/workspace/data/data36"] F701329_0;
-node[shape=box, label="/home/vagrant/workspace/data/data31"] F701324_0;
-node[shape=box, label="/home/vagrant/workspace/data/data27"] F701320_0;
-node[shape=box, label="/home/vagrant/workspace/data/data22"] F701315_0;
-node[shape=box, label="/home/vagrant/workspace/data/data18"] F701311_0;
-node[shape=box, label="/home/vagrant/workspace/data/data13"] F701306_0;
-node[shape=box, label="/etc/services"] F131280_0;
-node[shape=box, label="/etc/hosts"] F131230_0;
-node[shape=box, label="/usr/lib/ssl/certs/578d5c04.0"] F272783_0;
-node[shape=box, label="/etc/protocols"] F131271_0;
-node[shape=box, label="/home/vagrant/.addressbook.lu"] F708234_0;
-node[shape=box, label="/dev/urandom"] F11_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libresolv.so.2"] F138045_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libnss_dns.so.2"] F137992_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libnss_mdns4_minimal.so.2"] F138000_0;
-node[shape=box, label="/lib/terminfo/x/xterm-256color"] F265052_0;
-node[shape=box, label="/home/vagrant/.pinerc"] F710762_0;
-node[shape=box, label="/etc/host.conf"] F131228_0;
-node[shape=box, label="/etc/resolv.conf"] F1117_0;
-node[shape=box, label="/etc/localtime"] F131245_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libnss_files.so.2"] F137994_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libnss_nis.so.2"] F138004_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libnsl.so.1"] F137988_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libnss_compat.so.2"] F137990_0;
-node[shape=box, label="/etc/nsswitch.conf"] F131263_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libdl.so.2"] F137936_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libc.so.6"] F137919_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libcrypto.so.1.0.0"] F164805_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libssl.so.1.0.0"] F164806_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libcrypt.so.1"] F137929_0;
-node[shape=box, label="/lib/x86_64-linux-gnu/libtinfo.so.5"] F138065_0;
-node[shape=box, label="/home/vagrant/TRACE/BIN/pine"] F705578_0;
+node[shape=box, label=" /etc/login.defs"] F131246_0;
+node[shape=box, label=" /var/run/utmp"] F6_0;
+node[shape=box, label=" /proc/stat"] F4026531990_0;
+node[shape=box, label=" /var/lib/sudo/vagrant/8"] F301882_0;
+node[shape=box, label=" /etc/pam.d/other"] F132702_0;
+node[shape=box, label=" /etc/pam.d/common-session"] F132691_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libpthread.so.0"] F138039_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/librt.so.1"] F138047_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libpam_misc.so.0"] F138013_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libdbus-1.so.3"] F137933_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libnih-dbus.so.1"] F137981_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libnih.so.1"] F137983_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libcgmanager.so.0"] F137924_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/security/pam_systemd.so"] F138125_0;
+node[shape=box, label=" /etc/pam.d/common-password"] F132689_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/security/pam_gnome_keyring.so"] F138101_0;
+node[shape=box, label=" /etc/pam.d/common-account"] F132690_0;
+node[shape=box, label=" /etc/pam.d/common-auth"] F140532_0;
+node[shape=box, label=" /etc/pam.d/sudo"] F132708_0;
+node[shape=box, label=" /etc/pam.d/common-session-noninteractive"] F132692_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/security/pam_umask.so"] F138131_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libcap.so.2"] F137922_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/security/pam_cap.so"] F138092_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/security/pam_permit.so"] F138115_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/security/pam_deny.so"] F138094_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libcrypt.so.1"] F137929_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/security/pam_unix.so"] F138132_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/security/pam_env.so"] F138096_0;
+node[shape=box, label=" /proc/sys/kernel/ngroups_max"] F10463_0;
+node[shape=box, label=" /etc/hosts"] F131230_0;
+node[shape=box, label=" /etc/resolv.conf"] F1117_0;
+node[shape=box, label=" /etc/host.conf"] F131228_0;
+node[shape=box, label=" /etc/sudoers"] F131288_0;
+node[shape=box, label=" /etc/sudoers.d/README"] F133521_0;
+node[shape=box, label=" /etc/nsswitch.conf"] F131263_0;
+node[shape=box, label=" /usr/share/locale/locale.alias"] F131244_0;
+node[shape=box, label=" /etc/default/nss"] F132197_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libaudit.so.1"] F137909_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libpam.so.0"] F138011_0;
+node[shape=box, label=" /usr/lib/sudo/sudoers.so"] F11954_0;
+node[shape=box, label=" /proc/49030/stat"] F119470_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libnss_files.so.2"] F137994_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libnss_nis.so.2"] F138004_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libnsl.so.1"] F137988_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libnss_compat.so.2"] F137990_0;
+node[shape=box, label=" /etc/localtime"] F131245_0;
+node[shape=box, label=" /proc/filesystems"] F4026532036_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libpcre.so.3"] F155374_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libc.so.6"] F137919_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libdl.so.2"] F137936_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libutil.so.1"] F138074_0;
+node[shape=box, label=" /lib/x86_64-linux-gnu/libselinux.so.1"] F138049_0;
 
-node[shape=diamond, label=""] S1;
+node[shape=diamond, label="file:/dev/log"] S1;
+node[shape=diamond, label="file:/var/run/nscd/socket"] S2;
 
-F1117_0 -> P49025_1;
-F11_0 -> P49025_1;
-F131228_0 -> P49025_1;
-F131230_0 -> P49025_1;
-F131245_0 -> P49025_1;
-F131255_0 -> P49025_1;
-F131263_0 -> P49025_1;
-F131271_0 -> P49025_1;
-F131280_0 -> P49025_1;
-F137919_0 -> P49025_1;
-F137929_0 -> P49025_1;
-F137936_0 -> P49025_1;
-F137988_0 -> P49025_1;
-F137990_0 -> P49025_1;
-F137992_0 -> P49025_1;
-F137994_0 -> P49025_1;
-F138000_0 -> P49025_1;
-F138004_0 -> P49025_1;
-F138045_0 -> P49025_1;
-F138065_0 -> P49025_1;
-F164805_0 -> P49025_1;
-F164806_0 -> P49025_1;
-F191376_0 -> P49025_1;
-F265052_0 -> P49025_1;
-F272783_0 -> P49025_1;
-F69077_35612885 -> P49025_1;
-F701284_0 -> P49025_1;
-F701294_0 -> P49025_1;
-F701295_0 -> P49025_1;
-F701297_0 -> P49025_1;
-F701298_0 -> P49025_1;
-F701299_0 -> P49025_1;
-F701300_0 -> P49025_1;
-F701301_0 -> P49025_1;
-F701302_0 -> P49025_1;
-F701303_0 -> P49025_1;
-F701304_0 -> P49025_1;
-F701305_0 -> P49025_1;
-F701306_0 -> P49025_1;
-F701308_0 -> P49025_1;
-F701309_0 -> P49025_1;
-F701310_0 -> P49025_1;
-F701311_0 -> P49025_1;
-F701312_0 -> P49025_1;
-F701313_0 -> P49025_1;
-F701314_0 -> P49025_1;
-F701315_0 -> P49025_1;
-F701316_0 -> P49025_1;
-F701317_0 -> P49025_1;
-F701318_0 -> P49025_1;
-F701319_0 -> P49025_1;
-F701320_0 -> P49025_1;
-F701321_0 -> P49025_1;
-F701322_0 -> P49025_1;
-F701323_0 -> P49025_1;
-F701324_0 -> P49025_1;
-F701325_0 -> P49025_1;
-F701327_0 -> P49025_1;
-F701328_0 -> P49025_1;
-F701329_0 -> P49025_1;
-F701330_0 -> P49025_1;
-F701331_0 -> P49025_1;
-F701332_0 -> P49025_1;
-F701333_0 -> P49025_1;
-F701334_0 -> P49025_1;
-F701336_0 -> P49025_1;
-F701337_0 -> P49025_1;
-F701338_0 -> P49025_1;
-F701339_0 -> P49025_1;
-F701341_0 -> P49025_1;
-F701342_0 -> P49025_1;
-F701343_0 -> P49025_1;
-F701344_0 -> P49025_1;
-F701345_0 -> P49025_1;
-F701346_0 -> P49025_1;
-F701348_0 -> P49025_1;
-F701349_0 -> P49025_1;
-F701350_0 -> P49025_1;
-F701351_0 -> P49025_1;
-F701353_0 -> P49025_1;
-F701354_0 -> P49025_1;
-F701355_0 -> P49025_1;
-F701356_0 -> P49025_1;
-F701357_0 -> P49025_1;
-F701358_0 -> P49025_1;
-F701359_0 -> P49025_1;
-F701360_0 -> P49025_1;
-F701361_0 -> P49025_1;
-F701362_0 -> P49025_1;
-F701363_0 -> P49025_1;
-F701364_0 -> P49025_1;
-F701365_0 -> P49025_1;
-F701366_0 -> P49025_1;
-F701367_0 -> P49025_1;
-F701368_0 -> P49025_1;
-F701369_0 -> P49025_1;
-F701370_0 -> P49025_1;
-F701371_0 -> P49025_1;
-F701372_0 -> P49025_1;
-F701373_0 -> P49025_1;
-F701374_0 -> P49025_1;
-F701375_0 -> P49025_1;
-F701376_0 -> P49025_1;
-F701377_0 -> P49025_1;
-F701378_0 -> P49025_1;
-F701379_0 -> P49025_1;
-F701380_0 -> P49025_1;
-F701381_0 -> P49025_1;
-F701382_0 -> P49025_1;
-F701383_0 -> P49025_1;
-F701384_0 -> P49025_1;
-F701385_0 -> P49025_1;
-F701386_0 -> P49025_1;
-F701387_0 -> P49025_1;
-F701388_0 -> P49025_1;
-F701389_0 -> P49025_1;
-F701390_0 -> P49025_1;
-F701391_0 -> P49025_1;
-F701392_0 -> P49025_1;
-F701393_0 -> P49025_1;
-F705578_0 -> P49025_1;
-F708234_0 -> P49025_1;
-F710761_0 -> P49025_1;
-F710762_0 -> P49025_1;
-P29447_1 -> P49025_1;
-P49025_1 -> F69077_35612885;
-P49025_1 -> F701395_35630738;
-S1 -> P49025_1;
+F10463_0 -> P49030_1;
+F1117_0 -> P49030_1;
+F119470_0 -> P49030_1;
+F11954_0 -> P49030_1;
+F131228_0 -> P49030_1;
+F131230_0 -> P49030_1;
+F131244_0 -> P49030_1;
+F131245_0 -> P49030_1;
+F131246_0 -> P49030_1;
+F131263_0 -> P49030_1;
+F131288_0 -> P49030_1;
+F132197_0 -> P49030_1;
+F132689_0 -> P49030_1;
+F132690_0 -> P49030_1;
+F132691_0 -> P49030_1;
+F132692_0 -> P49030_1;
+F132702_0 -> P49030_1;
+F132708_0 -> P49030_1;
+F133521_0 -> P49030_1;
+F137909_0 -> P49030_1;
+F137919_0 -> P49030_1;
+F137922_0 -> P49030_1;
+F137924_0 -> P49030_1;
+F137929_0 -> P49030_1;
+F137933_0 -> P49030_1;
+F137936_0 -> P49030_1;
+F137981_0 -> P49030_1;
+F137983_0 -> P49030_1;
+F137988_0 -> P49030_1;
+F137990_0 -> P49030_1;
+F137994_0 -> P49030_1;
+F138004_0 -> P49030_1;
+F138011_0 -> P49030_1;
+F138013_0 -> P49030_1;
+F138039_0 -> P49030_1;
+F138047_0 -> P49030_1;
+F138049_0 -> P49030_1;
+F138074_0 -> P49030_1;
+F138092_0 -> P49030_1;
+F138094_0 -> P49030_1;
+F138096_0 -> P49030_1;
+F138101_0 -> P49030_1;
+F138115_0 -> P49030_1;
+F138125_0 -> P49030_1;
+F138131_0 -> P49030_1;
+F138132_0 -> P49030_1;
+F140532_0 -> P49030_1;
+F155374_0 -> P49030_1;
+F301882_0 -> P49030_1;
+F4026531990_0 -> P49030_1;
+F4026532036_0 -> P49030_1;
+F6_0 -> P49030_1;
+P29447_1 -> P49030_1;
+P49030_1 -> P49031_-1;
+S1 -> P49030_1;
+S2 -> P49030_1;
 }
-/* num_proc 2, num_file 125, num_socket 1, num_edge 128
+/* num_proc 3, num_file 52, num_socket 2, num_edge 56
 
 Tainted Units:
-  pid 49025, cluster 1, path /home/vagrant/TRACE/BIN/pine
-    cluster: 49025--1, 
-  pid 29447, cluster 1, path /bin/bash
+  pid 49031, cluster -1, path start_node
+    cluster: all units
+  pid 49030, cluster 1, path  /usr/bin/sudo
+    cluster: 49030--1, 
+  pid 29447, cluster 1, path  /bin/bash
     cluster: 29447--1, 
 
 Tainted Files:
-  inode 701395 (created_eid 35630738), name /home/vagrant/vsftp.file
-  inode 131255 (created_eid 0), name /etc/mime.types
-  inode 191376 (created_eid 0), name /etc/mailcap
-  inode 69077 (created_eid 35612885), name /tmp/tmpfvQF2hq
-  inode 710761 (created_eid 0), name /home/vagrant/mail/sent-mail
-  inode 701393 (created_eid 0), name /home/vagrant/workspace/data/data99
-  inode 701388 (created_eid 0), name /home/vagrant/workspace/data/data94
-  inode 701370 (created_eid 0), name /home/vagrant/workspace/data/data76
-  inode 701365 (created_eid 0), name /home/vagrant/workspace/data/data71
-  inode 701356 (created_eid 0), name /home/vagrant/workspace/data/data62
-  inode 701361 (created_eid 0), name /home/vagrant/workspace/data/data67
-  inode 701302 (created_eid 0), name /home/vagrant/workspace/data/data9
-  inode 701379 (created_eid 0), name /home/vagrant/workspace/data/data85
-  inode 701374 (created_eid 0), name /home/vagrant/workspace/data/data80
-  inode 701351 (created_eid 0), name /home/vagrant/workspace/data/data58
-  inode 701346 (created_eid 0), name /home/vagrant/workspace/data/data53
-  inode 701342 (created_eid 0), name /home/vagrant/workspace/data/data49
-  inode 701337 (created_eid 0), name /home/vagrant/workspace/data/data44
-  inode 701297 (created_eid 0), name /home/vagrant/workspace/data/data4
-  inode 701328 (created_eid 0), name /home/vagrant/workspace/data/data35
-  inode 701323 (created_eid 0), name /home/vagrant/workspace/data/data30
-  inode 701319 (created_eid 0), name /home/vagrant/workspace/data/data26
-  inode 701314 (created_eid 0), name /home/vagrant/workspace/data/data21
-  inode 701310 (created_eid 0), name /home/vagrant/workspace/data/data17
-  inode 701305 (created_eid 0), name /home/vagrant/workspace/data/data12
-  inode 701304 (created_eid 0), name /home/vagrant/workspace/data/data11
-  inode 701309 (created_eid 0), name /home/vagrant/workspace/data/data16
-  inode 701313 (created_eid 0), name /home/vagrant/workspace/data/data20
-  inode 701318 (created_eid 0), name /home/vagrant/workspace/data/data25
-  inode 701295 (created_eid 0), name /home/vagrant/workspace/data/data3
-  inode 701327 (created_eid 0), name /home/vagrant/workspace/data/data34
-  inode 701332 (created_eid 0), name /home/vagrant/workspace/data/data39
-  inode 701336 (created_eid 0), name /home/vagrant/workspace/data/data43
-  inode 701341 (created_eid 0), name /home/vagrant/workspace/data/data48
-  inode 701345 (created_eid 0), name /home/vagrant/workspace/data/data52
-  inode 701350 (created_eid 0), name /home/vagrant/workspace/data/data57
-  inode 701355 (created_eid 0), name /home/vagrant/workspace/data/data61
-  inode 701360 (created_eid 0), name /home/vagrant/workspace/data/data66
-  inode 701364 (created_eid 0), name /home/vagrant/workspace/data/data70
-  inode 701369 (created_eid 0), name /home/vagrant/workspace/data/data75
-  inode 701301 (created_eid 0), name /home/vagrant/workspace/data/data8
-  inode 701378 (created_eid 0), name /home/vagrant/workspace/data/data84
-  inode 701383 (created_eid 0), name /home/vagrant/workspace/data/data89
-  inode 701387 (created_eid 0), name /home/vagrant/workspace/data/data93
-  inode 701392 (created_eid 0), name /home/vagrant/workspace/data/data98
-  inode 701391 (created_eid 0), name /home/vagrant/workspace/data/data97
-  inode 701386 (created_eid 0), name /home/vagrant/workspace/data/data92
-  inode 701382 (created_eid 0), name /home/vagrant/workspace/data/data88
-  inode 701377 (created_eid 0), name /home/vagrant/workspace/data/data83
-  inode 701373 (created_eid 0), name /home/vagrant/workspace/data/data79
-  inode 701368 (created_eid 0), name /home/vagrant/workspace/data/data74
-  inode 701300 (created_eid 0), name /home/vagrant/workspace/data/data7
-  inode 701359 (created_eid 0), name /home/vagrant/workspace/data/data65
-  inode 701354 (created_eid 0), name /home/vagrant/workspace/data/data60
-  inode 701349 (created_eid 0), name /home/vagrant/workspace/data/data56
-  inode 701344 (created_eid 0), name /home/vagrant/workspace/data/data51
-  inode 701331 (created_eid 0), name /home/vagrant/workspace/data/data38
-  inode 701322 (created_eid 0), name /home/vagrant/workspace/data/data29
-  inode 701317 (created_eid 0), name /home/vagrant/workspace/data/data24
-  inode 701284 (created_eid 0), name /home/vagrant/workspace/data/data2
-  inode 701308 (created_eid 0), name /home/vagrant/workspace/data/data15
-  inode 701303 (created_eid 0), name /home/vagrant/workspace/data/data10
-  inode 701312 (created_eid 0), name /home/vagrant/workspace/data/data19
-  inode 701316 (created_eid 0), name /home/vagrant/workspace/data/data23
-  inode 701321 (created_eid 0), name /home/vagrant/workspace/data/data28
-  inode 701325 (created_eid 0), name /home/vagrant/workspace/data/data32
-  inode 701330 (created_eid 0), name /home/vagrant/workspace/data/data37
-  inode 701363 (created_eid 0), name /home/vagrant/workspace/data/data69
-  inode 701367 (created_eid 0), name /home/vagrant/workspace/data/data73
-  inode 701372 (created_eid 0), name /home/vagrant/workspace/data/data78
-  inode 701390 (created_eid 0), name /home/vagrant/workspace/data/data96
-  inode 701294 (created_eid 0), name /home/vagrant/workspace/data/generate.c
-  inode 701334 (created_eid 0), name /home/vagrant/workspace/data/data41
-  inode 701339 (created_eid 0), name /home/vagrant/workspace/data/data46
-  inode 701343 (created_eid 0), name /home/vagrant/workspace/data/data50
-  inode 701348 (created_eid 0), name /home/vagrant/workspace/data/data55
-  inode 701299 (created_eid 0), name /home/vagrant/workspace/data/data6
-  inode 701358 (created_eid 0), name /home/vagrant/workspace/data/data64
-  inode 701376 (created_eid 0), name /home/vagrant/workspace/data/data82
-  inode 701381 (created_eid 0), name /home/vagrant/workspace/data/data87
-  inode 701385 (created_eid 0), name /home/vagrant/workspace/data/data91
-  inode 701389 (created_eid 0), name /home/vagrant/workspace/data/data95
-  inode 701384 (created_eid 0), name /home/vagrant/workspace/data/data90
-  inode 701380 (created_eid 0), name /home/vagrant/workspace/data/data86
-  inode 701375 (created_eid 0), name /home/vagrant/workspace/data/data81
-  inode 701371 (created_eid 0), name /home/vagrant/workspace/data/data77
-  inode 701366 (created_eid 0), name /home/vagrant/workspace/data/data72
-  inode 701362 (created_eid 0), name /home/vagrant/workspace/data/data68
-  inode 701357 (created_eid 0), name /home/vagrant/workspace/data/data63
-  inode 701353 (created_eid 0), name /home/vagrant/workspace/data/data59
-  inode 701298 (created_eid 0), name /home/vagrant/workspace/data/data5
-  inode 701338 (created_eid 0), name /home/vagrant/workspace/data/data45
-  inode 701333 (created_eid 0), name /home/vagrant/workspace/data/data40
-  inode 701329 (created_eid 0), name /home/vagrant/workspace/data/data36
-  inode 701324 (created_eid 0), name /home/vagrant/workspace/data/data31
-  inode 701320 (created_eid 0), name /home/vagrant/workspace/data/data27
-  inode 701315 (created_eid 0), name /home/vagrant/workspace/data/data22
-  inode 701311 (created_eid 0), name /home/vagrant/workspace/data/data18
-  inode 701306 (created_eid 0), name /home/vagrant/workspace/data/data13
-  inode 131280 (created_eid 0), name /etc/services
-  inode 131230 (created_eid 0), name /etc/hosts
-  inode 272783 (created_eid 0), name /usr/lib/ssl/certs/578d5c04.0
-  inode 131271 (created_eid 0), name /etc/protocols
-  inode 708234 (created_eid 0), name /home/vagrant/.addressbook.lu
-  inode 11 (created_eid 0), name /dev/urandom
-  inode 138045 (created_eid 0), name /lib/x86_64-linux-gnu/libresolv.so.2
-  inode 137992 (created_eid 0), name /lib/x86_64-linux-gnu/libnss_dns.so.2
-  inode 138000 (created_eid 0), name /lib/x86_64-linux-gnu/libnss_mdns4_minimal.so.2
-  inode 265052 (created_eid 0), name /lib/terminfo/x/xterm-256color
-  inode 710762 (created_eid 0), name /home/vagrant/.pinerc
-  inode 131228 (created_eid 0), name /etc/host.conf
-  inode 1117 (created_eid 0), name /etc/resolv.conf
-  inode 131245 (created_eid 0), name /etc/localtime
-  inode 137994 (created_eid 0), name /lib/x86_64-linux-gnu/libnss_files.so.2
-  inode 138004 (created_eid 0), name /lib/x86_64-linux-gnu/libnss_nis.so.2
-  inode 137988 (created_eid 0), name /lib/x86_64-linux-gnu/libnsl.so.1
-  inode 137990 (created_eid 0), name /lib/x86_64-linux-gnu/libnss_compat.so.2
-  inode 131263 (created_eid 0), name /etc/nsswitch.conf
-  inode 137936 (created_eid 0), name /lib/x86_64-linux-gnu/libdl.so.2
-  inode 137919 (created_eid 0), name /lib/x86_64-linux-gnu/libc.so.6
-  inode 164805 (created_eid 0), name /lib/x86_64-linux-gnu/libcrypto.so.1.0.0
-  inode 164806 (created_eid 0), name /lib/x86_64-linux-gnu/libssl.so.1.0.0
-  inode 137929 (created_eid 0), name /lib/x86_64-linux-gnu/libcrypt.so.1
-  inode 138065 (created_eid 0), name /lib/x86_64-linux-gnu/libtinfo.so.5
-  inode 705578 (created_eid 0), name /home/vagrant/TRACE/BIN/pine
+  inode 131246 (created_eid 0), name  /etc/login.defs
+  inode 6 (created_eid 0), name  /var/run/utmp
+  inode 4026531990 (created_eid 0), name  /proc/stat
+  inode 301882 (created_eid 0), name  /var/lib/sudo/vagrant/8
+  inode 132702 (created_eid 0), name  /etc/pam.d/other
+  inode 132691 (created_eid 0), name  /etc/pam.d/common-session
+  inode 138039 (created_eid 0), name  /lib/x86_64-linux-gnu/libpthread.so.0
+  inode 138047 (created_eid 0), name  /lib/x86_64-linux-gnu/librt.so.1
+  inode 138013 (created_eid 0), name  /lib/x86_64-linux-gnu/libpam_misc.so.0
+  inode 137933 (created_eid 0), name  /lib/x86_64-linux-gnu/libdbus-1.so.3
+  inode 137981 (created_eid 0), name  /lib/x86_64-linux-gnu/libnih-dbus.so.1
+  inode 137983 (created_eid 0), name  /lib/x86_64-linux-gnu/libnih.so.1
+  inode 137924 (created_eid 0), name  /lib/x86_64-linux-gnu/libcgmanager.so.0
+  inode 138125 (created_eid 0), name  /lib/x86_64-linux-gnu/security/pam_systemd.so
+  inode 132689 (created_eid 0), name  /etc/pam.d/common-password
+  inode 138101 (created_eid 0), name  /lib/x86_64-linux-gnu/security/pam_gnome_keyring.so
+  inode 132690 (created_eid 0), name  /etc/pam.d/common-account
+  inode 140532 (created_eid 0), name  /etc/pam.d/common-auth
+  inode 132708 (created_eid 0), name  /etc/pam.d/sudo
+  inode 132692 (created_eid 0), name  /etc/pam.d/common-session-noninteractive
+  inode 138131 (created_eid 0), name  /lib/x86_64-linux-gnu/security/pam_umask.so
+  inode 137922 (created_eid 0), name  /lib/x86_64-linux-gnu/libcap.so.2
+  inode 138092 (created_eid 0), name  /lib/x86_64-linux-gnu/security/pam_cap.so
+  inode 138115 (created_eid 0), name  /lib/x86_64-linux-gnu/security/pam_permit.so
+  inode 138094 (created_eid 0), name  /lib/x86_64-linux-gnu/security/pam_deny.so
+  inode 137929 (created_eid 0), name  /lib/x86_64-linux-gnu/libcrypt.so.1
+  inode 138132 (created_eid 0), name  /lib/x86_64-linux-gnu/security/pam_unix.so
+  inode 138096 (created_eid 0), name  /lib/x86_64-linux-gnu/security/pam_env.so
+  inode 10463 (created_eid 0), name  /proc/sys/kernel/ngroups_max
+  inode 131230 (created_eid 0), name  /etc/hosts
+  inode 1117 (created_eid 0), name  /etc/resolv.conf
+  inode 131228 (created_eid 0), name  /etc/host.conf
+  inode 131288 (created_eid 0), name  /etc/sudoers
+  inode 133521 (created_eid 0), name  /etc/sudoers.d/README
+  inode 131263 (created_eid 0), name  /etc/nsswitch.conf
+  inode 131244 (created_eid 0), name  /usr/share/locale/locale.alias
+  inode 132197 (created_eid 0), name  /etc/default/nss
+  inode 137909 (created_eid 0), name  /lib/x86_64-linux-gnu/libaudit.so.1
+  inode 138011 (created_eid 0), name  /lib/x86_64-linux-gnu/libpam.so.0
+  inode 11954 (created_eid 0), name  /usr/lib/sudo/sudoers.so
+  inode 119470 (created_eid 0), name  /proc/49030/stat
+  inode 137994 (created_eid 0), name  /lib/x86_64-linux-gnu/libnss_files.so.2
+  inode 138004 (created_eid 0), name  /lib/x86_64-linux-gnu/libnss_nis.so.2
+  inode 137988 (created_eid 0), name  /lib/x86_64-linux-gnu/libnsl.so.1
+  inode 137990 (created_eid 0), name  /lib/x86_64-linux-gnu/libnss_compat.so.2
+  inode 131245 (created_eid 0), name  /etc/localtime
+  inode 4026532036 (created_eid 0), name  /proc/filesystems
+  inode 155374 (created_eid 0), name  /lib/x86_64-linux-gnu/libpcre.so.3
+  inode 137919 (created_eid 0), name  /lib/x86_64-linux-gnu/libc.so.6
+  inode 137936 (created_eid 0), name  /lib/x86_64-linux-gnu/libdl.so.2
+  inode 138074 (created_eid 0), name  /lib/x86_64-linux-gnu/libutil.so.1
+  inode 138049 (created_eid 0), name  /lib/x86_64-linux-gnu/libselinux.so.1
 
 Tainted Sockets:
-  [1] 
+  [1] file:/dev/log
+  [2] file:/var/run/nscd/socket
 */

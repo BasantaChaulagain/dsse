@@ -51,6 +51,12 @@ def main():
  
     sse = SSE_Client()
 
+    print("random")
+    print("Searching remote index for word(s): ", args)
+
+    if args.csv_input:
+        CSV_INPUT = 1
+
     if args.update:
         if (DEBUG):
             print(("Updating index with document %s" % args.update[0]))
@@ -61,7 +67,7 @@ def main():
         if (DEBUG):
            print(("Searching remote index for word(s): '%s'" 
                   % args.search[0]))
-
+        print("random")
         sse.search(args.search[0])
 
     elif args.inspect_index:
@@ -73,12 +79,6 @@ def main():
             for k in index_.keys():
                 print("k:%s\tv:%s" % (k, index_[k]))
             index_.close()
-
-    elif args.csv_input:
-        # config["GLOBAL"]["CSV_INPUT"] = 1
-        # with open(CONFIG_FILE, 'w') as ymlfile:
-        #     yaml.safe_dump(config, ymlfile)
-        CSV_INPUT = 1
 
 
     elif args.test_http:
