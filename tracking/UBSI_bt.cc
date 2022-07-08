@@ -1,27 +1,21 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <iostream>
+#include <chrono>
+#include <ctime>
 #include "init_scan.h"
 #include "utils.h"
 #include "tables.h"
 #include "graph.h"
 
-void write_handler(int sysno, char *buf)
+using namespace std;
+
+void write_handler_(int sysno, long eid, int tid, int fd, string exe, double ts, double* backtrack_ts, int* flag)
 {
-		int fd, tid, pid, unitid;
-		long eid;
-		string exe;
-		process_table_t *pt;
-
-		fd = get_fd(sysno, buf);
-		extract_long(buf, ":", 1, &eid);
-		extract_int(buf, " pid=", 5, &tid);
-		extract_int(buf, " unitid=", 8, &unitid);
-#ifdef WITHOUT_UNIT
-		unitid = -1;
-#endif
-		pid = get_pid(tid);
-
-		pt = get_process_table(pid);
+	debugtrack("In write handler\n");
+		int unitid = -1;
+		int pid = get_pid(tid);
+		process_table_t* pt = get_process_table(pid);
 
 		fd_el_t *fd_el;
 		fd_el = get_fd(pt, fd, eid);
@@ -30,235 +24,310 @@ void write_handler(int sysno, char *buf)
 				debug("pid %d, eid %ld, fd %d does not exist\n", pid, eid, fd);
 				return;
 		}
+		debugtrack("sock:%d, np:%d, inode:%ld, path:%s, tainted_inode:%d\n", fd_el->is_socket, fd_el->num_path, fd_el->inode[fd_el->num_path-1], fd_el->path[fd_el->num_path-1].c_str(), is_tainted_inode(fd_el->inode[fd_el->num_path-1], eid));
 
 		if(fd_el->is_socket == false && is_tainted_inode(fd_el->inode[fd_el->num_path-1], eid)) { // only check the last path..
-				exe = extract_string(buf, " exe=", 5);
 				edge_proc_to_file(tid, unitid, fd_el->inode[fd_el->num_path-1], eid);
 				if(taint_unit(get_process_table(pid), tid, unitid, exe)) {
-						debugbt("Taint Unit (tid %d, unitid %d, exe %s): WRITE (sysno %d, eid %ld) (# path %d): inode %ld, path:%s, pathtype: %s\n", 
+						debugtrack("Taint Unit (tid %d, unitid %d, exe %s): WRITE (sysno %d, eid %ld) (# path %d): inode %ld, path:%s, pathtype: %s\n", 
 										tid, unitid, exe.c_str(),
 										sysno, eid, fd_el->num_path, fd_el->inode[fd_el->num_path-1], 
 										get_absolute_path(fd_el, fd_el->num_path-1).c_str(), 
 										fd_el->pathtype[fd_el->num_path-1].c_str());
 				}
+				*flag = 1;
+				timestamp_table_t *tt;
+				update_timestamp_table(tt, tid, ts, 1);
+
+				if (ts < *backtrack_ts)	*backtrack_ts = ts;
+				debugtrack("w-backtrack_ts: %lf\t", *backtrack_ts);
 		}
+		// printf("EXIT from write handler\n");
 }
 
-void read_handler(int sysno, char *buf)
-{
-		int fd, tid, pid, unitid;
-		long eid;
-		process_table_t *pt;
+void read_handler_(int sysno, long eid, int tid, int fd, int ret, double ts, double* backtrack_ts, int* flag){
+		debugtrack("In read handler\n");
+		if (sysno == 43)	fd = ret; 	//SYS_accept
+		int unitid = -1;
+		int pid = get_pid(tid);
+		process_table_t* pt = get_process_table(pid);
 
-		extract_int(buf, " pid=", 5, &tid);
-		extract_int(buf, " unitid=", 8, &unitid);
-#ifdef WITHOUT_UNIT
-		unitid = -1;
-#endif
+		if(pt == NULL)	{
+			debugtrack("pt is null\n");
+			return;}
 
-		pid = get_pid(tid);
-		pt = get_process_table(pid);
-		
-		if(pt == NULL) {
-				printf("WARNING: PT is NULL: buf=%s\n", buf);
-				return;
-		}
-
-		if(is_tainted_unit(pt, tid, unitid) == false) return;
+		debugtrack("is_tainted_unit: %d, return if 0.\n", is_tainted_unit(pt, tid, unitid));
+		if(is_tainted_unit(pt, tid, unitid) == false)	return;
 	
-		fd = get_fd(sysno, buf);
 		if(fd < 3) return;
-		extract_long(buf, ":", 1, &eid);
 
 		fd_el_t *fd_el;
 		fd_el = get_fd(pt, fd, eid);
-		
 		if(fd_el == NULL || fd_el->num_path == 0) {
-				debug("pid %d, eid %ld, fd %d does not exist\n", pid, eid, fd);
+				debugtrack("pid %d, eid %ld, fd %d does not exist\n", pid, eid, fd);
 				return;
 		}
 
-		debugbt("Taint file: READ fd %d (sysno %d, eid %ld, tid %d, unitid %d) (# path %d): inode %ld, path:%s, pathtype: %s\n",
+		debugtrack("Taint file: READ fd %d (sysno %d, eid %ld, tid %d, unitid %d) (# path %d): inode %ld, path:%s, pathtype: %s, is_socket: %d\n",
 						fd, sysno, eid, tid, unitid, fd_el->num_path, fd_el->inode[fd_el->num_path-1], 
-						get_absolute_path(fd_el, fd_el->num_path-1).c_str(), fd_el->pathtype[fd_el->num_path-1].c_str());
+						get_absolute_path(fd_el, fd_el->num_path-1).c_str(), fd_el->pathtype[fd_el->num_path-1].c_str(), fd_el->is_socket);
 		if(fd_el->is_socket) { // it is socket
+			debugtrack("is socket: %s\n", fd_el->path[fd_el->num_path-1].c_str());
 				int t_socket = taint_socket(fd_el->path[fd_el->num_path-1]);
 				edge_socket_to_proc(tid, unitid, t_socket);
 		} else {
+				debugtrack("taint inode from read : %ld [%ld] - %ld\n", fd_el->inode[fd_el->num_path-1], fd_el->eid, eid);
 				taint_inode(fd_el->inode[fd_el->num_path-1], eid, get_absolute_path(fd_el, fd_el->num_path-1));
 				edge_file_to_proc(tid, unitid, fd_el->inode[fd_el->num_path-1], eid);
+
+				timestamp_table_t *tt;
+				update_timestamp_table(tt, fd_el->inode[fd_el->num_path-1], ts, 1);
 		}
+		*flag = 1;
+
+		if (ts < *backtrack_ts)	*backtrack_ts = ts;
+		debugtrack("r-backtrack_ts: %lf\t", *backtrack_ts);
+		// printf("EXIT from read handler\n");
 }
 
-void file_create_handler(int sysno, char *buf)
-{
-
-}
-
-void fork_handler(int sysno, char *buf)
-{
-		long a1;
-		int ret, tid, unitid;
-		string exe;
-		extract_hex_long(buf, " a1=", 4, &a1);	
-		//printf("fork handler a1 %ld: %s\n", a1, buf);
+void fork_handler_(int sysno, long eid, int tid, int a1, int ret, string exe, double ts, double* backtrack_ts, int* flag){
+		debugtrack("In fork handler\n");
+		int unitid = -1;
 		if(a1 > 0) return;
-		
-
-		extract_int(buf, " exit=", 6, &ret); 
 		if(is_tainted_pid(ret)) {
-				extract_int(buf, " pid=", 5, &tid); 
-				extract_int(buf, " unitid=", 8, &unitid); 
-#ifdef WITHOUT_UNIT
-				unitid = -1;
-#endif
-				exe = extract_string(buf, " exe=", 5);
 				edge_proc_to_proc(tid, unitid, ret);
 				if(taint_unit(get_process_table(get_pid(tid)), tid, unitid, exe))
 				{
-						debugbt("Taint Process: fork (sysno %d) pid %d, unitid %d, exit %d, exe %s\n", sysno, tid, unitid, ret, exe.c_str());
+						debugtrack("Taint Process: fork (sysno %d) pid %d, unitid %d, exit %d, exe %s\n", sysno, tid, unitid, ret, exe.c_str());
 				}
+				*flag = 1;
+				timestamp_table_t *tt;
+				update_timestamp_table(tt, tid, ts, 1);
+
+				if (ts < *backtrack_ts)	*backtrack_ts = ts;
+				debugtrack("f-backtrack_ts: %lf\t", *backtrack_ts);
 		}
+		debugtrack("EXIT from fork handler\n");
 }
 
-void exec_handler(int sysno, char *buf)
-{
-		char *ptr;
-		string path, cwd;
-		int fd, tid, pid, unitid;
-		long eid, inode;
-
-		process_table_t *pt;
-
-		extract_long(buf, ":", 1, &eid);
-		extract_int(buf, " pid=", 5, &tid);
-		extract_int(buf, " unitid=", 8, &unitid);
-
-#ifdef WITHOUT_UNIT
-				unitid = -1;
-#endif
-
-		pid = get_pid(tid);
-
-		pt = get_process_table(pid);
-
-		ptr = strstr(buf, "type=PATH");
-		assert(ptr);
-
-		ptr+=9;
-		path = extract_string(ptr, " name=", 6);
-
-		extract_long(ptr, " inode=", 7, &inode); 
-		ptr = strstr(buf, "type=CWD");
-		cwd = extract_string(ptr, " cwd=", 5);
-		//debugbt("exec_handler: eid %ld tid %d, unitid %d, inode %ld, cwd %s, path %s\n", eid, tid, unitid, inode, cwd.c_str(), path.c_str());
+void exec_handler_(int sysno, long eid, int tid, string cwd, string path, long inode, double ts, double* backtrack_ts, int* flag){
+		debugtrack("In exec handler\n");
+		int unitid = -1;
+		int pid = get_pid(tid);
+		process_table_t* pt = get_process_table(pid);
 
 		if(is_tainted_pid(pid)) {
 				edge_file_to_proc(tid, unitid, inode, eid);
+				debugtrack("taint inode from exec : %ld [%ld]\n", inode, eid);
 				if(taint_inode(inode, eid, get_absolute_path(cwd,path))) { // only check the last path..
-						debugbt("Taint File (tid %d, unitid %d): Execve (sysno %d, eid %ld), inode %ld, path:%s\n",
+						debugtaint("Taint File (tid %d, unitid %d): Execve (sysno %d, eid %ld), inode %ld, path:%s\n",
 										tid, unitid,
 										sysno, eid, inode, get_absolute_path(cwd,path).c_str());
 				}
+				*flag = 1;
+				timestamp_table_t *tt;
+				update_timestamp_table(tt, inode, ts, 1);
+
+				if (ts < *backtrack_ts)	*backtrack_ts = ts;
+				debugtrack("e-backtrack_ts: %lf\t", *backtrack_ts);
 		}
+		debugtrack("EXIT from exec handler\n");
 }
 
-void bt_syscall_handler(char *buf)
-{
-		char *ptr;
-		int sysno;
+void bt_syscall_handler_(char * buf, double ts, double* backtrack_ts, int* flag){
+	// printf("In bt syscall handler: %s", buf);
+		char *ptr, args[100], list[12][100];
+		int i=0, j=0, sysno, fd, ret, tid;
+		string exe, cwd, path;
+		long eid, inode, a1;
 
-		ptr = strstr(buf, " syscall=");
-		assert(ptr);
-		sysno = strtol(ptr+9, NULL, 10);
-	
-		if(is_file_create(sysno)) {
-				file_create_handler(sysno, buf);
+		ptr = strtok(buf, ";");
+		while (ptr != NULL){
+			if(i==0 || i==2 || i==3 || i==4 || i==7 || i==10 || i==14 || i==17 || i==18 || i==28 || i==30 || i==31){
+				strcpy(list[j++], ptr);
+			}
+			ptr = strtok(NULL, ";");
+			i++;
+		}
+
+		eid = strtol(list[0], NULL, 10);
+		sysno = get_sysno(list[1]);
+		ret = atoi(list[2]);
+		strcpy(args, list[3]);
+		tid = atoi(list[4]);
+		exe = list[5];
+		fd = atoi(list[6]);
+		cwd = list[9];
+		if(sysno == 59){
+			path = list[10];
+			inode = strtol(list[11], NULL, 10);
+		}
+		else{
+			path = list[7];
+			inode = strtol(list[8], NULL, 10);
 		}
 
 		if(is_exec(sysno)) {
-				exec_handler(sysno, buf);
+				exec_handler_(sysno, eid, tid, cwd, path, inode, ts, backtrack_ts, flag);
+				debugtrack("new backtrack_ts: %ld\t", *backtrack_ts);
 		}
 		if(is_read(sysno)) {
-				read_handler(sysno, buf);
+				read_handler_(sysno, eid, tid, fd, ret, ts, backtrack_ts, flag);
+				debugtrack("new backtrack_ts: %ld\t", *backtrack_ts);
 		}
-
 		if(is_write(sysno) && !is_socket(sysno)) {
-				write_handler(sysno, buf);
+				write_handler_(sysno, eid, tid, fd, exe, ts, backtrack_ts, flag);
+				debugtrack("new backtrack_ts: %ld\t", *backtrack_ts);
 		}
 		if(is_fork_or_clone(sysno)) {
-				fork_handler(sysno, buf);
+				char* temp = strstr(args, "a[1]=");
+				if(temp){
+					temp = strtok(temp, " ");
+					a1 = strtol(temp+5, NULL, 16);
+				}
+				fork_handler_(sysno, eid, tid, a1, ret, exe, ts, backtrack_ts, flag);
+				debugtrack("new backtrack_ts: %ld\t", *backtrack_ts);
 		}
-		// return -1;
+		// printf("fields:\teid:%ld, sysno:%d, tid:%d, exe:%s, fd:%d, ret:%d, a1:%ld\n", eid, sysno, tid, exe.c_str(), fd, ret, a1);
 }
+
 
 void table_scan(int user_pid, long user_inode){
 	FILE* pp;
-	printf("table scan\n");
-	string query = "python client.py -s ";
-	string search_string = "";
+	char buf[10000][530];
+	// int eid_list[10000], eid_index=0;
+	int keywords[1000] = {0};
+	int i, k, start_index, stop_index = 0, first_iteration = 1;
+	int buf_add_index, buf_search_index, keyword_add_index, keyword_search_index;
+	buf_add_index = buf_search_index = keyword_add_index = keyword_search_index = 0;
+	
+	string query = "python client.py -c 1 -s ";
 
-	if (user_pid>0) search_string = to_string(user_pid);
-	else if (user_inode>0) search_string = to_string(user_inode);
+	if (user_pid>0) keywords[0] = user_pid;
+	else if (user_inode>0) keywords[0] = int(user_inode);
+	debugtrack("keywords[0]: %d\n", keywords[0]);
+	int q=0;
 
-	while (search_string.c_str() != "" && search_string.c_str() != "-1"){
-		printf("search string: %s\n", search_string.c_str());
-		pp = popen(query.append(search_string).c_str(), "r");
-		printf("popen: result of search\n");
-		char *line;
-		while (fgets(line, 1000, pp) != NULL)
-    		printf("%s", line);
-		
-		if (pp != NULL){
-			while(1){
-				char* line;
-				char buf[1000];
-				line = fgets(buf, sizeof buf, pp);
-				if (line ==NULL) break;
-				char* ptr = strstr(line, " syscall=");
-				printf("line: %s", line);
-				if (ptr){
-					// search_string = to_string(bt_syscall_handler(line));
-					printf("%s\n", search_string.c_str());
-					break;
-				}
+	do {
+			char line[530];
+			string search_string = query + to_string(keywords[keyword_search_index++]);
+			printf("search string: %s\n", search_string.c_str());
+			pp = popen(search_string.c_str(), "r");
+
+			while(fgets(line, 530, pp) != NULL){\
+				if (strtol(line, NULL, 10) == 0)
+					continue;
+
+				char temp[530], *ptr;
+				strcpy(temp, line);
+				ptr = strtok(temp, ";");
+				ptr = strtok(NULL, ";");
+				ptr = strtok(NULL, ";");
+				if (strncmp(ptr, " UBSI_ENTRY", 11)==0 || strncmp(ptr, " UBSI_EXIT", 10)==0)
+					continue;
+				ptr = strtok(ptr, "(");
+				ptr = strtok(NULL, ")");
+				int sysno = atoi(ptr);
+				if (is_file_create(sysno)==0 && is_exec(sysno)==0 && is_write(sysno)==0 && is_read(sysno)==0 && is_fork_or_clone(sysno)==0)
+					continue;
+
+				strcpy(buf[buf_add_index++], line);
 			}
-		}
-		pclose(pp);
-	}
+
+			debugtrack("Running for buf with index %d to %d\n", buf_add_index-1, stop_index);
+			start_index = buf_add_index-1;
+			for (k=start_index; k>=stop_index; k--){
+					int flag=0, new_eid=1, l;	// flag is to denote if the event has been tainted.
+					char temp[530];
+					strcpy(temp, buf[k]);
+					long eid = strtol(temp, NULL, 10);
+					double ts = stod(temp+10);
+
+					if (first_iteration){
+						long kw = long(keywords[keyword_search_index-1]);
+						timestamp_table_t* tt;
+						HASH_FIND(hh, timestamp_table, &kw, sizeof(long), tt);
+						if (tt != NULL){
+							debugtrack("tt is not null. %lf: %d\n", tt->ts, kw);
+							backtrack_ts = tt->ts;
+						}
+						else{
+							debugtrack("tt is null. %lf: %d\n", ts, kw);
+							backtrack_ts = ts;
+						}
+						first_iteration = 0;
+					}
+
+					debugtrack("\neid: %d, ts: %ld, backtrack_ts: %ld\t\t", eid, ts, backtrack_ts);
+					// for(l=0; l<eid_index; l++){
+					// 	if(eid_list[l]==eid){
+					// 		new_eid = 0;
+					// 		break;
+					// 	}
+					// }
+
+					if(ts !=0 && ts <= backtrack_ts && new_eid == 1){
+						bt_syscall_handler_(temp, ts, &backtrack_ts, &flag);
+						// eid_list[eid_index++] = (int)eid;
+
+						// extract pid and inode from the logs.
+						if (flag == 1){
+							char *ptr, list[2][12];
+							strcpy(temp, buf[k]);
+							ptr = strtok(temp, ";");
+							int i = 0, j = 0;
+							while(ptr != NULL){
+								if(i==7 || i==18)
+									strcpy(list[j++], ptr);
+								ptr = strtok(NULL, ";");
+								i++;
+							}
+							int pid = atoi(list[0]);
+							int inode = atoi(list[1]);
+							debugtrack("\npid: %d, inode: %d\n", pid, inode);
+
+							int pid_exist = 0, inode_exist = 0;
+							for (i=0; i<=keyword_add_index; i++){
+								if (pid == keywords[i]){
+									pid_exist = 1;
+									break;
+								}
+							}
+							for (i=0; i<=keyword_add_index; i++){
+								if (inode == keywords[i]){
+									inode_exist = 1;
+									break;
+								}
+							}
+							debugtrack("pid_exist %d, inode_exist %d\n", pid_exist, inode_exist);
+							if (pid_exist == 0 && pid > 0)
+								keywords[++keyword_add_index] = pid;
+							if (inode_exist == 0 && inode > 0)
+								keywords[++keyword_add_index] = inode;
+						}
+						// add a line to the new index only if the prev log is tainted, else replace it.
+						if (flag == 0)
+							buf_add_index--;
+					}
+			}
+			stop_index = buf_add_index;
+			first_iteration = 1;
+			
+			// printf("\nkeywords\t");
+			// for (i=0; i<=keyword_add_index; i++){
+			// 	printf("%d\t", keywords[i]);
+			// }
+
+			debugtrack("\nnext keyword: %d\n", keywords[keyword_search_index]);
+			debugtrack("lines in buf: %d\n", buf_add_index);
+			pclose(pp);
+	} while (keywords[keyword_search_index] != 0);
 }
 
-void reverse_scan(FILE *fp)
-{
-		char buf[1048576];
-
-		printf("(2/4) Process system calls.\n");
-
-		int j=0;
-		for(int i = fp_table_size -1; i >= 0; i--)
-		{
-				if(j++ > 1000) {
-						loadBar(fp_table_size - i, fp_table_size, 10, 50);
-						j = 0;
-				}
-				fseek(fp, fp_table[i][0], SEEK_SET);
-				fread(buf, fp_table[i][1], 1, fp);
-				buf[fp_table[i][1]] = '\0';
-				bt_syscall_handler(buf);
-		}
-}
-
-void test_fnc()
-{
-		string cwd, path;
-		cwd = string("/home/kyuhlee/");
-		path = string("/file1");
-		printf("test: cwd %s, path %s, absolute %s\n", cwd.c_str(), path.c_str(), get_absolute_path(cwd, path).c_str());
-
-}
 
 int main(int argc, char** argv)
 {
+		auto start = chrono::system_clock::now();
 		bool load_init_table = true;
 
 		FILE *fp;
@@ -268,6 +337,8 @@ int main(int argc, char** argv)
 		char *init_table_name = NULL;
 		char *f_name = NULL;
 		char *p_name = NULL;
+
+		backtrack_ts = 0;
 
 		while ((opt = getopt(argc, argv, "i:f:p:t:h")) != -1) {
 				switch(opt) {
@@ -316,9 +387,6 @@ int main(int argc, char** argv)
 				printf("Init table name=%s\n", init_table_name);
 		}
 
-		//user_inode = 701395;
-		//user_pid=49039;
-
 		init_table();
 
 		printf("Load init_table (%s)\n", init_table_name);
@@ -343,30 +411,29 @@ int main(int argc, char** argv)
 
 		if(user_inode > 0) {
 				string path;
-				long user_eid = check_inode_list(user_inode, &path);
-				printf("user_eid: %ld\n", user_eid);
+				long user_eid = check_inode_list(user_inode, &path, &backtrack_ts);
 				if(user_eid < 0) return 1;
-				printf("inode tainted\n");
-				taint_inode(user_inode, user_eid+1, path);
+				debugtaint("taint inode from initial : %ld [%ld]\n", user_inode, user_eid);
+				if (path[0] == ' ') path = path.substr(1);
+				taint_inode(user_inode, user_eid, path);
 		}
-		printf("fp: %p\n", fp);
-		if(fp != NULL){
-				reverse_scan(fp);
+		if(log_name != NULL){
 				fclose(fp);
 		}
-		else
+		else{
+				printf("calling table scan.\n");
 				table_scan(user_pid, user_inode);
+		}
 				
-	
-#ifdef WITHOUT_UNIT
 		fp = fopen("AUDIT_bt.graph", "w");
-#else
-		fp = fopen("UBSI_bt.graph", "w");
-#endif
+
 		emit_graph(fp);
 		emit_graph_detail(fp);
 		fclose(fp);
-//		test_fnc();
+
+		auto end = chrono::system_clock::now();
+		chrono::duration<double> elapsed_seconds = end-start;
+		printf("elapsed time: %lf\n", elapsed_seconds.count());
+
 		return 1;
 }
-

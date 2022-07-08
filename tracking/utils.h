@@ -6,6 +6,7 @@
 #define MAX_PATH 10
 // #define DEBUGBT
 // #define DEBUGTAINT
+#define DEBUGTRACK
 // #define DEBUGNOW 1
 // #define DEBUG 1
 
@@ -21,6 +22,12 @@
 		#define debugtaint(M, ...) fprintf(stderr, "DEBUG %s:%d: " M, __FILE__, __LINE__, ##__VA_ARGS__)
 #else
 		#define debugtaint(M, ...)
+#endif
+
+#ifdef DEBUGTRACK
+		#define debugtrack(M, ...) fprintf(stdout, "" M, ##__VA_ARGS__)
+#else
+		#define debugtrack(M, ...)
 #endif
 
 #ifdef DEBUGNOW

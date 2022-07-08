@@ -80,7 +80,7 @@ typedef struct fd_table_t {
 		int fd;
 		fd_el_t *fd_el; // same fd can be opened multiple times.
 		UT_hash_handle hh;
-} fd_table_t;
+} fd_table_t; 
 
 typedef struct process_table_t {
 		int pid;
@@ -109,6 +109,13 @@ typedef struct inode_table_t {
 		UT_hash_handle hh;
 } inode_table_t;
 
+typedef struct timestamp_table_t {
+		long keyword;
+		double ts;
+		UT_hash_handle hh;
+} timestamp_table_t;
+
+
 process_table_t *get_process_table(int pid);
 string merge_path(fd_el_t *el);
 unit_list_t *get_unit_list(int tid, int unitid);
@@ -118,7 +125,8 @@ cluster_el_t get_cluster(int tid, int unitid);
 void print_unit_cluster(int pid, unit_cluster_t* ut);
 void print_all_unit_clusters(int pid);
 void print_fd_list(int pid, fd_table_t *ft);
-long check_inode_list(long user_inode, string *path);
+// long check_inode_list(long user_inode, string *path);
+long check_inode_list(long user_inode, string *path, double* backtrack_ts);
 
 inode_t find_inode(long inode, long eid);
 bool is_tainted_unit(process_table_t *pt, int clusterid);
@@ -136,6 +144,7 @@ string get_absolute_path(fd_el_t *fd_el, int num);
 string get_absolute_path(string cwd, string path);
 void insert_single_unit(process_table_t *pt, int tid, int unitid);
 int taint_socket(string name);
+void update_timestamp_table(timestamp_table_t* tt, long keyword, double ts, bool backtrack);
 
 
 void edge_proc_to_file(int tid, int unitid, long inode, long eid);
@@ -147,7 +156,9 @@ void edge_socket_to_proc(int tid, int unitid, int socket);
 extern thread_process_t *thread2process_table;
 extern process_table_t *process_table;
 extern inode_table_t *inode_table;
-extern long **fp_table; 
+extern timestamp_table_t *timestamp_table;
+
+extern long **fp_table;  
 extern int fp_table_size;
 extern long num_syscall;
 extern long user_inode;
@@ -158,6 +169,5 @@ extern tainted_inode_t *tainted_inode;
 extern set<int> tainted_pid; // at lease one cluster is tainted. Need to use for fork/clone..
 extern map<string, int> tainted_socket;
 extern set<string> edge_list; 
-
 
 #endif

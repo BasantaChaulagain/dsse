@@ -1,16 +1,17 @@
 digraph callgraph {
 
+node[shape=oval, label="start_node"] P49031_-1;
 
-node[shape=box, label=" /home/vagrant/mail/sent-mail.lock.1471074597.49025.ubuntu"] F701395_35612915;
 
 
 }
-/* num_proc 0, num_file 1, num_socket 0, num_edge 0
+/* num_proc 1, num_file 0, num_socket 0, num_edge 0
 
 Tainted Units:
+  pid 49031, cluster -1, path start_node
+    cluster: all units
 
 Tainted Files:
-  inode 701395 (created_eid 35612915), name  /home/vagrant/mail/sent-mail.lock.1471074597.49025.ubuntu
 
 Tainted Sockets:
 */

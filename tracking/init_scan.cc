@@ -18,6 +18,8 @@
 
 bool is_init_scan;
 long num_syscall = 0;
+double backtrack_ts = 0;
+double forward_ts = 0;
 
 void process_exit(int tid)
 {
@@ -254,7 +256,7 @@ void fd_pair_handler(char *buf, int tid, int sysno)
 		DL_APPEND(ft->fd_el, fd_el);
 }
 
-void socket_fd_handler_(long eid, char* fd0_ip, fd_table_t *ft){
+void socket_fd_handler_(long eid, char* fd0_ip, char* fd0_port, fd_table_t *ft){
 		int num;
 		fd_el_t *fd_el;
 
@@ -269,7 +271,10 @@ void socket_fd_handler_(long eid, char* fd0_ip, fd_table_t *ft){
 				char *ptr = strstr(fd0_ip, "path");
 				if (ptr != NULL)
 					strncpy(ptr, "file", 4);
-				// std::string str(fd0_ip+1);
+				else if(fd0_port != " "){
+					strcat(fd0_ip,":");
+					strcat(fd0_ip, fd0_port+1);
+				}
 				fd_el->path[0] = fd0_ip+1;
 				debug("saddr: %s\n", fd_el->path[0].c_str());
 				DL_APPEND(ft->fd_el, fd_el);
@@ -312,7 +317,7 @@ void file_fd_handler_(long eid, char* cwd, char* fd0_name, char* fd1_name, char*
 		fd_el->is_pipe = false;
 
 		if(cwd != " ") {
-				fd_el->cwd = cwd;
+				fd_el->cwd = cwd+1;
 		} else {
 				fprintf(stderr, "File open log does not have \"CWD\". Try again after sort the log file with \"sortlog\" command.\n");
 				return;
@@ -320,13 +325,13 @@ void file_fd_handler_(long eid, char* cwd, char* fd0_name, char* fd1_name, char*
 
 		if (fd0_name != " " && fd0_type != " " && fd0_inode){
 				num = 0;
-				fd_el->path[num] = fd0_name;
+				fd_el->path[num] = fd0_name+1;
 				fd_el->pathtype[num] = fd0_type;
 				fd_el->inode[num] = fd0_inode;
 		}
 		if (fd1_name != " " && fd1_type != " " && fd1_inode){
 				num = 1;
-				fd_el->path[num] = fd1_name;
+				fd_el->path[num] = fd1_name+1;
 				fd_el->pathtype[num] = fd1_type;
 				fd_el->inode[num] = fd1_inode;
 		}
@@ -371,37 +376,69 @@ void file_fd_handler(char *buf, long eid, fd_table_t *ft)
 		DL_APPEND(ft->fd_el, fd_el);
 }
 
-void update_inode_table_(long eid, time_t time, unsigned int mil, long inode, char* type, char* name){
+void update_inode_table_(int sysno, long eid, time_t time, unsigned int mil, long inode, char* type, char* name){
 		char *ptr;
 		inode_table_t *it;
-		
+		printf("%ld: update inode table for inode:%ld, name:%s\n", eid, inode, name);
+
 		HASH_FIND_LONG(inode_table, &inode, it);
 		if(it == NULL)
 		{
+			// printf("inode not found in table. %ld, %ld\n", inode, eid);
 				it = new inode_table_t;
 				it->inode = inode;
 				inode_el_t el;
 				el.name = name;
-				el.created_eid = eid;
-				el.created_time = time;
-				el.created_time_mil = mil;
-				el.deleted_eid = el.deleted_time = el.deleted_time_mil = 0;
+				if (is_file_create(sysno) || sysno == SYS_open){
+					el.created_eid = eid;
+					el.created_time = time;
+					el.created_time_mil = mil;
+					el.deleted_eid = el.deleted_time = el.deleted_time_mil = 0;
+				}
+				else if (is_file_delete(sysno)){
+					el.deleted_eid = eid;
+					el.deleted_time = time;
+					el.deleted_time_mil = mil;
+					el.created_eid = el.created_time = el.created_time_mil = 0;
+				}
 				it->list.push_back(el);
 				HASH_ADD(hh, inode_table, inode, sizeof(long), it);
 		}
 
-		if(it->list.back().name != name){
+		// scan the entire list to see if the name already exists.
+		int path_exists = 0;
+		for(vector<inode_el_t>::iterator iit = it->list.begin(); iit != it->list.end(); iit++)
+		{
+			if(iit->name == name)	path_exists=1;
+
+			if(iit->name == name && is_file_delete(sysno)){
+				iit->deleted_eid = eid;
+				iit->deleted_time = time;
+				iit->deleted_time_mil = mil;
+				break;
+			}
+		}
+		if(path_exists == 0){
+			// printf("Adding another inode_el_t to inode:%ld, name:%s\n", it->inode, name);
 			inode_el_t el;
 			el.name = name;
-			el.created_eid = eid;
-			el.created_time = time;
-			el.created_time_mil = mil;
-			el.deleted_eid = el.deleted_time = el.deleted_time_mil = 0;
+			if (is_file_create(sysno)|| sysno == SYS_open){
+				el.created_eid = eid;
+				el.created_time = time;
+				el.created_time_mil = mil;
+				el.deleted_eid = el.deleted_time = el.deleted_time_mil = 0;
+			}
+			else if (is_file_delete(sysno)){
+				el.deleted_eid = eid;
+				el.deleted_time = time;
+				el.deleted_time_mil = mil;
+				el.created_eid = el.created_time = el.created_time_mil = 0;
+			}
 			it->list.push_back(el);
 		}
 }
 
-void fd_handler_(long tid, int sysno, long pid, long eid, long a0, long ret, char* cwd, char* fd0_name, char* fd1_name, char* fd0_type, char* fd1_type, long fd0_inode, long fd1_inode, char* fd0_ip){
+void fd_handler_(long tid, int sysno, long pid, long eid, long a0, long ret, char* cwd, char* fd0_name, char* fd1_name, char* fd0_type, char* fd1_type, long fd0_inode, long fd1_inode, char* fd0_ip, char* fd0_port){
 		//SYS_open, SYS_openat, SYS_creat, SYS_accept, SYS_connect
 		char *ptr;
 		int fd;
@@ -427,11 +464,12 @@ void fd_handler_(long tid, int sysno, long pid, long eid, long a0, long ret, cha
 				HASH_ADD_INT(pt->fd_table, fd, ft);
 		}
 		if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_creat) {
+			debugtrack("File FD handler event %ld, pid %d, sysno %d, fd0:%s, inode:%ld, cwd:%s\n", eid, pid, sysno, fd0_name, fd0_inode, cwd);
 				file_fd_handler_(eid, cwd, fd0_name, fd1_name, fd0_type, fd1_type, fd0_inode, fd1_inode, ft);
 		} 
 		else {
-			debug("Socket FD handler event %ld, pid %d, sysno %d, fd0 %s\n", eid, pid, sysno, fd0_ip);
-				socket_fd_handler_(eid, fd0_ip, ft);
+			debugtrack("Socket FD handler event %ld, pid %d, sysno %d, fd0 %s\n", eid, pid, sysno, fd0_ip);
+				socket_fd_handler_(eid, fd0_ip, fd0_port, ft);
 		}
 		
 		debug("FD handler event %ld, pid %d, sysno %d\n", eid, pid, sysno); 
@@ -493,6 +531,7 @@ int get_tid(char *tid){
 
 void init_event_handler(char *buf)
 {
+	// printf("buf: %s", buf);
 	int i = 0, sysno;
 	char list[34][200], *ptr;
 	long a0, a1, a2, pid, ppid, ret, tid, eid;
@@ -503,6 +542,11 @@ void init_event_handler(char *buf)
 		ptr = strtok(NULL, ";");
 	}
 	num_syscall++;
+
+	// for (i=0; i<35; i++){
+	// 	printf("%d: %s\t", i, list[i]);
+	// }
+	// printf("\n");
 	
 	// Fields from the event
 	eid = strtol(list[0], NULL, 10);
@@ -543,24 +587,33 @@ void init_event_handler(char *buf)
 		}
 		process_exit(tid);
 	} 
-	else if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_accept || sysno == SYS_connect || sysno == SYS_accept4 || is_file_create(sysno) || is_file_delete(sysno) || is_file_rename(sysno) ) {
+	else if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_accept || sysno == SYS_connect || sysno == SYS_accept4 || is_file_create(sysno) || is_file_delete(sysno) || is_file_rename(sysno)) {
 			char *cwd = list[28];
 			char *fd0_name = list[17];
 			char *fd1_name = list[24];
 			char *fd0_ip = list[19];
+			char *fd0_port = list[20];
 			char *fd0_type = list[15];
 			char *fd1_type = list[22];
 			long fd0_inode = strtol(list[18], NULL, 10);
 			long fd1_inode = strtol(list[25], NULL, 10);
+			int flag = atoi(list[34]);
 			time_t time;
 			unsigned int mil;
 
 			extract_time_(list[1], &time, &mil);
 
-			fd_handler_(tid, sysno, pid, eid, a0, ret, cwd, fd0_name, fd1_name, fd0_type, fd1_type, fd0_inode, fd1_inode, fd0_ip);
-
-			if (is_file_create(sysno) || is_file_delete(sysno) || is_file_rename(sysno)){
-					update_inode_table_(eid, time, mil, fd0_inode, fd0_type, fd0_name);
+			fd_handler_(tid, sysno, pid, eid, a0, ret, cwd, fd0_name, fd1_name, fd0_type, fd1_type, fd0_inode, fd1_inode, fd0_ip, fd0_port);
+			// if (sysno != SYS_accept || sysno != SYS_connect || sysno != SYS_accept4 ){
+			if (is_file_create(sysno) || is_file_delete(sysno)){
+					update_inode_table_(sysno, eid, time, mil, fd0_inode, fd0_type, fd0_name);
+			}
+			if (is_file_rename(sysno)){
+					update_inode_table_(sysno, eid, time, mil, fd1_inode, fd1_type, fd1_name);
+			}
+			if ((sysno == SYS_open || sysno == SYS_openat) && flag==1){
+				printf("eid: %ld, flag: %d\n", eid, flag);
+					update_inode_table_(sysno, eid, time, mil, fd0_inode, fd0_type, fd0_name);
 			}
 	} 
 	else if(sysno == SYS_socketpair || sysno == SYS_dup || sysno == SYS_dup2 || sysno == SYS_dup3) {

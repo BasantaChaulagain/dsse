@@ -23,6 +23,37 @@ thread_process_t *thread2process_table;
 process_table_t *process_table;
 
 inode_table_t *inode_table;
+
+timestamp_table_t *timestamp_table = NULL;
+
+
+void update_timestamp_table(timestamp_table_t* tt, long keyword, double ts, bool backtrack)
+{
+		HASH_FIND(hh, timestamp_table, &keyword, sizeof(long), tt);
+		if (tt == NULL){
+			tt = new timestamp_table_t;
+			tt->keyword = keyword;
+			tt->ts = ts;
+			HASH_ADD(hh, timestamp_table, keyword, sizeof(long), tt);
+			if (backtrack == 1)
+				debugtrack("adding backtrack_ts for keyword. %ld: %lf\n", keyword, ts);
+			else
+				debugtrack("adding forward_ts for keyword. %ld: %lf\n", keyword, ts);
+		}
+		else if (backtrack == 1){
+			if (ts > tt->ts){
+				tt->ts = ts;
+				debugtrack("updating backtrack_ts for keyword. %ld: %lf\n", keyword, ts);
+			}
+		}
+		else if (backtrack == 0){
+			if (ts < tt->ts){
+				tt->ts = ts;
+				debugtrack("updating forward_ts for keyword. %ld: %lf\n", keyword, ts);
+			}
+		}
+}
+
 string get_absolute_path(fd_el_t *fd_el, int num)
 {
 		string str;
@@ -41,14 +72,14 @@ string get_absolute_path(string cwd, string path)
 
 		int size = path.size();
 		
-		if(size > 0 && path[0] == '/') return string(path);
+		if(size > 1 && path[1] == '/') return string(path.substr(1));
 		
 		if(cwd[cwd.size()-1] == '/') {
 				ret = string(cwd);
 		} else ret = string(cwd + "/");
 
-		if(size >1 && path[0] == '.' && path[1] == '/') {
-				ret.append(path.begin()+2, path.end());
+		if(size >1 && path[1] == '.' && path[2] == '/') {
+				ret.append(path.begin()+3, path.end());
 		} else {
 				ret.append(path);
 		}
@@ -193,6 +224,7 @@ process_table_t *get_process_table(int pid)
 				pt->fd_table = NULL;
 				HASH_ADD_INT(process_table, pid, pt);
 		}
+		// printf("pt is not null. %d\n", pt->pid);
 		return pt;
 }
 
@@ -245,7 +277,7 @@ bool is_tainted_unit(process_table_t *pt, int clusterid)
 		tainted_cluster_t *tc;
 
 		HASH_FIND(hh, tainted_cluster, &c, sizeof(cluster_el_t), tc);
-		if(tc != NULL) return true;
+		if(tc != NULL)	return true;
 
 		c.clusterid = clusterid;
 		HASH_FIND(hh, tainted_cluster, &c, sizeof(cluster_el_t), tc);
@@ -258,6 +290,7 @@ bool is_tainted_unit(process_table_t *pt, int tid, int unitid)
 {
 		//if(tid == 49025 && unitid == 35) return true;
 		//if(is_tainted_unit(pt, -1)) return true;
+		// printf("is_tainted_unit cAlled from read handler\n");
 		int clusterid;
 		unit_table_t *ut;
 
@@ -267,12 +300,12 @@ bool is_tainted_unit(process_table_t *pt, int tid, int unitid)
 
 		HASH_FIND(hh, pt->unit_table, &ud, sizeof(unit_el_t), ut);
 		if(ut == NULL) {
-				//printf("tid %d, unitid %d: ut is null\n", tid, unitid);
+				debugtaint("tid %d, unitid %d: ut is null\n", tid, unitid);
 				return false;
 		}
 //		assert(ut);
-
 		clusterid = ut->clusterid;
+		// debugtrack("is tainted unit: %d\n", is_tainted_unit(pt, clusterid));
 		return is_tainted_unit(pt, clusterid);
 }
 
@@ -283,7 +316,7 @@ bool is_tainted_inode(long inode, long eid)
 		
 		inode_t in = find_inode(inode, eid);
 		HASH_FIND(hh, tainted_inode, &in, sizeof(inode_t), ti);
-
+		
 		if(ti == NULL) return false;
 		return true;
 }
@@ -292,6 +325,7 @@ bool taint_unit(process_table_t *pt, int clusterid, string path)
 {
 //		if(is_tainted_pid(pt->pid)) return false;
 		if(is_tainted_unit(pt, clusterid)) return false;
+		if (path[0] == ' ') path = path.substr(1);
 
 		//tainted_cluster_t *tc = (tainted_cluster_t*) malloc (sizeof(tainted_cluster_t));
 		tainted_cluster_t *tc = new tainted_cluster_t;
@@ -325,11 +359,13 @@ bool taint_unit(process_table_t *pt, int tid, int unitid, string path)
 		
 		if(is_tainted_unit(pt, clusterid)) return false;
 
+		if (path[0] == ' ') path = path.substr(1);
+
 		//tainted_cluster_t *tc = (tainted_cluster_t*) malloc (sizeof(tainted_cluster_t));
 		tainted_cluster_t *tc = new tainted_cluster_t;
 		tc->id.pid = pt->pid;
 		tc->id.clusterid = clusterid;
-		tc->path = string(path);
+		tc->path = path;
 
 		debugtaint("Taint_unit: pid %d (tid %d, unitid%d), clusterid %d, path %s\n", pt->pid, tid, unitid, clusterid, path.c_str());
 		HASH_ADD(hh, tainted_cluster, id, sizeof(cluster_el_t), tc);
@@ -348,9 +384,23 @@ bool is_tainted_pid(int pid)
 bool taint_all_units_in_pid(int pid, string path)
 {
 		int spid = get_pid(pid);
-		
-		if(is_tainted_unit(get_process_table(pid), -1)) return false;
-		//if(is_tainted_pid(spid)) return false;
+
+		unit_table_t *ut;
+		process_table_t *pt = get_process_table(pid);
+
+		unit_el_t ud;
+		ud.tid = pid;
+		ud.unitid = -1;
+
+		HASH_FIND(hh, pt->unit_table, &ud, sizeof(unit_el_t), ut);
+		if(ut == NULL) {
+				insert_single_unit(pt, pid, -1);
+				HASH_FIND(hh, pt->unit_table, &ud, sizeof(unit_el_t), ut);
+		}
+		int clusterid = ut->clusterid;
+		if(is_tainted_unit(pt, -1)) return false;
+
+		// if(is_tainted_unit(get_process_table(pid), -1)) return false;
 
 		//tainted_cluster_t *tc = (tainted_cluster_t*) malloc (sizeof(tainted_cluster_t));
 		tainted_cluster_t *tc = new tainted_cluster_t;
@@ -362,12 +412,11 @@ bool taint_all_units_in_pid(int pid, string path)
 		tainted_pid.insert(spid);
 
 		return true;;
-
 }
 
 bool taint_inode(long inode, long eid, string path)
 {
-		if(inode == 0) return false;
+		if(inode <= 0) return false;
 		if(is_tainted_inode(inode, eid)) return false;
 
 		inode_t id = find_inode(inode, eid);
@@ -377,13 +426,15 @@ bool taint_inode(long inode, long eid, string path)
 		//inode_t in;
 		//in.inode = inode;
 
+		if (path[0] == ' ') path = path.substr(1);
+
 		//in = (tainted_inode_t*)malloc(sizeof(tainted_inode_t));
 		in = new tainted_inode_t;
 		in->inode.inode = inode;
 		in->inode.created_eid = id.created_eid;
 		in->name = string(path);
 
-		debugtaint("Taint inode %ld\n", inode);
+		debugtrack("Taint inode %ld, created_eid: %ld\n", inode, id.created_eid);
 		HASH_ADD(hh, tainted_inode, inode, sizeof(inode_t), in);
 		return true;
 }
@@ -393,10 +444,12 @@ int tainted_socket_num = 1;
 int taint_socket(string name)
 {
 		map<string, int>::iterator it;
-		it = tainted_socket.find(name);
-		if(it != tainted_socket.end()) return it->second;
+		if (name != ":"){
+			it = tainted_socket.find(name);
+			if(it != tainted_socket.end()) return it->second;
 
-		tainted_socket.insert(pair<string, int>(name, tainted_socket_num++));
+			tainted_socket.insert(pair<string, int>(name, tainted_socket_num++));	
+		}
 		return tainted_socket_num-1;
 }
 
@@ -464,25 +517,26 @@ inode_t find_inode(long inode, long eid)
 		
 		HASH_FIND(hh, inode_table, &inode, sizeof(long), it);
 		if(it == NULL) {
-				printf("Inode %ld is not in the table.\n", inode);
-				assert(0);
+				debugtaint("Inode %ld is not in the table.\n", inode);
+				// assert(0);
 				ret.inode = inode;
 				ret.created_eid = 0;
-
 				return ret;
-		}
+			}
 	
 		for(vector<inode_el_t>::iterator iit = it->list.begin(); iit != it->list.end(); iit++)
 		{
+			debugtrack("%ld: %ld, c: %ld, d: %ld, name:%s\n", inode, eid, iit->created_eid, iit->deleted_eid, iit->name.c_str());
 				if(iit->created_eid <= eid && (iit->deleted_eid == 0 || iit->deleted_eid >= eid))
 				{
 						ret.inode = inode;
 						ret.created_eid = iit->created_eid;
-
+						debugtaint("inode found in inode table.\n");
 						return ret;
 				}
 		}
-		assert(0);
+		// assert(0);
+		debugtaint("inode not found in inode table.\n");
 		ret.inode = inode;
 		ret.created_eid = 0;
 		
@@ -490,7 +544,7 @@ inode_t find_inode(long inode, long eid)
 }
 
 
-long check_inode_list(long inode, string *path)
+long check_inode_list(long inode, string *path, double *backtrack_ts)
 {
 		inode_table_t *it;
 		vector<inode_el_t>::iterator iit;
@@ -510,6 +564,7 @@ long check_inode_list(long inode, string *path)
 						convert_time(iit->deleted_time, iit->deleted_time_mil).c_str());
 				
 				*path = string(iit->name);
+				*backtrack_ts = iit->created_time;
 				return it->list.back().created_eid;
 		}
 
