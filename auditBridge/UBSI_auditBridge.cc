@@ -315,7 +315,7 @@ ino_t find_next_file(time_t time, ino_t cur_inode)
 		
 		char eFile[1024];
 		time_t eTime = 0; // the earliest file mod time but later than dirTime
-		int eInode = 0;
+		long eInode = 0;
 
 		d = opendir(dirPath);
 
@@ -834,6 +834,7 @@ void unit_end(unit_table_t *unit, long a1)
 
 void clear_proc(unit_table_t *unit)
 {
+	// printf("In clear proc. %d\n", unit->pid);
 		if(unit == NULL) return;
 
 		unit_end(unit, -1);
@@ -850,10 +851,12 @@ void clear_proc(unit_table_t *unit)
 		}
 		unit->fd = NULL;
 		//KYU: unit integration
+		// printf("out clear proc. %d\n", unit->pid);
 }
 
 void proc_end(unit_table_t *unit)
 {
+	// printf("In proc end. %d\n", unit->pid);
 		if(unit == NULL) return;
 
 		thread_group_leader_t *tgl;
@@ -864,10 +867,12 @@ void proc_end(unit_table_t *unit)
 		}
 
 		clear_proc(unit);
-
+		// printf("before table del. %d, %d, %d\n", unit->pid, unit->thread.tid, unit->ppid);
+		
 		HASH_DEL(unit_table, unit);
 		delete unit;
 
+		// printf("out proc end. %d, %d, %d\n", unit->pid, unit->thread.tid, unit->ppid);
 		return;
 }
 
@@ -1347,7 +1352,7 @@ void dup_fd(unit_table_t *unit, long fd0, long fd1)
 		HASH_ADD(hh, ut->fd, fd, sizeof(long), t_fd1);
 }
 
-void set_fd(unit_table_t *unit, long fd, const char* name, int inode, fd_t::fd_type type, int isImportant)
+void set_fd(unit_table_t *unit, long fd, const char* name, long inode, fd_t::fd_type type, int isImportant)
 {
 		thread_group_leader_t *tgl;
 		thread_group_t *tg;
@@ -1380,6 +1385,11 @@ void set_fd(unit_table_t *unit, long fd, const char* name, int inode, fd_t::fd_t
 		new_fd->inode = inode;
 		new_fd->isImportant = isImportant;
 		HASH_ADD(hh, ut->fd, fd, sizeof(long), new_fd);
+
+		// fd_t *t1, *t2;
+		// HASH_ITER(hh, ut->fd, t1, t2) {
+		// 	printf("set_fd: %ld, name: %s, inode: %ld, unit: %d_%d\n", t1->fd, t1->name, t1->inode, ut->cur_unit.tid, ut->cur_unit.loopid);
+		// }
 }
 
 fd_t* get_fd(unit_table_t *unit, long fd)
@@ -1396,8 +1406,14 @@ fd_t* get_fd(unit_table_t *unit, long fd)
 				if(ut == NULL) ut = unit;
 		}
 
+		// fd_t *t1, *t2;
+		// HASH_ITER(hh, ut->fd, t1, t2) {
+		// 	printf("get_fd: %ld, name: %s, inode: %ld, unit: %d_%d\n", t1->fd, t1->name, t1->inode, ut->cur_unit.tid, ut->cur_unit.loopid);
+		// }
+
 		fd_t *new_fd;
 		HASH_FIND(hh, ut->fd, &fd, sizeof(long), new_fd);
+
 		
 		return new_fd;
 }
@@ -1429,9 +1445,10 @@ void clear_fd(unit_table_t *unit, long fd)
 void analyze_syscall(unit_table_t *ut, char* buf, int sysno, bool succ, long a0)
 {
 		if(sysno != SYS_connect && succ == false) return;
+		// printf("%s", buf);
 
-		int i, inode, items;
-		long ret;
+		int i, items;
+		long ret, inode;
 		char *ptr, *name;
 		fd_t *fd;
 		string sockaddr;
@@ -1441,11 +1458,12 @@ void analyze_syscall(unit_table_t *ut, char* buf, int sysno, bool succ, long a0)
 				if(a0 >= 3) {
 						fd = get_fd(ut, a0);
 						if(fd == NULL) {
-								//fprintf(stderr, "fd is null(%d): %s\n", a0, buf);
+								// fprintf(stderr, "fd is null(%d): %s\n", a0, buf);
 								return;
 						}
 						if(fd->isImportant) ut->num_io_syscall++;
 						if(CSVOUT) {
+							// printf("sysno: %d, csv = true, fd->type: %s\n", sysno, fd->type);
 								if(fd->type == fd_t::file) CSV_access_by_fd(ut, buf, a0, fd->name, fd->inode, "file");
 								else if(fd->type == fd_t::pipe) CSV_access_by_fd(ut, buf, a0, fd->name, fd->inode, "pipe");
 								else if(fd->type == fd_t::socket) CSV_socket(ut, buf, fd->name, a0);
@@ -1470,11 +1488,13 @@ void analyze_syscall(unit_table_t *ut, char* buf, int sysno, bool succ, long a0)
 		}
 
 		if(sysno == SYS_clone || sysno == SYS_execve || sysno == SYS_fork ||
-				 sysno == SYS_vfork)  {
+				sysno == SYS_vfork)  {
 				ut->num_proc_syscall++;
 				if(CSVOUT) {
-						if(sysno == SYS_execve) 
+						if(sysno == SYS_execve) {
+							// printf("pid from analyzer: %ld, %ld\n", ut->pid, ut->ppid);
 								CSV_execve(ut, buf);
+						}
 						else CSV_default(ut, buf);
 				}
 
@@ -1497,12 +1517,15 @@ void analyze_syscall(unit_table_t *ut, char* buf, int sysno, bool succ, long a0)
 		}
 
 		if(sysno == SYS_open || sysno == SYS_openat || sysno == SYS_creat)	{
-				int isImportant = 1;
-				string filePath = filename_open_tmp(buf, &inode);
+				int isImportant = 1, flag=0;
+				char *temp = (char *)malloc(strlen(buf)+1);
+				strcpy(temp, buf);
+				string filePath = filename_open_tmp(temp, &inode, &flag);
 				const char *path = filePath.c_str();
-				if(CSVOUT) CSV_file_open(ut, buf);
+				if(CSVOUT) CSV_file_open(ut, buf, flag);
 				
-				//fprintf(stderr, "PATH=%s ---- %s\n", path, last_ptr);
+				// if(eid == 35612915)
+					// printf(stderr, "PATH=%s ---- %s\n", path, last_ptr);
 				
 				if(strstr(path, ".mozilla") != NULL) isImportant=0;
 				if(strstr(path, ".cache/mozilla") != NULL) isImportant=0;
@@ -1585,7 +1608,8 @@ void analyze_syscall(unit_table_t *ut, char* buf, int sysno, bool succ, long a0)
 		if(sysno == SYS_sendfile) {
 				// in_fd should be regular file, cannot be socket
 				// out_fd can be either file or socket.
-				int a1, in_inode, out_inode;
+				int a1;
+				long in_inode, out_inode;
 				bool out_socket;
 				fd_t *in_fd, *out_fd;
 				char *in_name, *out_name;
@@ -1701,8 +1725,8 @@ void non_UBSI_event(long tid, int sysno, bool succ, long a0, long a1, long a2, c
 
 		struct unit_table_t *ut;
 
-		thread_t th;  
-		th.tid = tid; 
+		thread_t th;
+		th.tid = tid;
 		th.thread_time.seconds = thread_create_time[tid].seconds;
 		th.thread_time.milliseconds = thread_create_time[tid].milliseconds;
 		HASH_FIND(hh, unit_table, &th, sizeof(thread_t), ut); 
@@ -1710,7 +1734,7 @@ void non_UBSI_event(long tid, int sysno, bool succ, long a0, long a1, long a2, c
 		if(ut == NULL) {
 				ut = add_unit(tid, tid, 0, buf);
 		}
-
+		
 		if(succ == true && (sysno == SYS_clone || sysno == SYS_fork || sysno == SYS_vfork))
 		{
 				ptr = strstr(buf, " exit=");
@@ -1735,7 +1759,6 @@ void non_UBSI_event(long tid, int sysno, bool succ, long a0, long a1, long a2, c
 		} else if(succ == true && ( sysno == SYS_execve || sysno == 322 || sysno == SYS_exit || sysno == SYS_exit_group)) {
 				// execve, exit or exit_group
 
-
 				if(sysno == SYS_exit_group) {
 						proc_group_end(ut);
 				} else if(sysno == SYS_exit) {
@@ -1747,9 +1770,10 @@ void non_UBSI_event(long tid, int sysno, bool succ, long a0, long a1, long a2, c
 								comm.copy(ut->comm, 1024);
 								exe.copy(ut->exe, 1024);
 								set_thread_time(buf, &thread_create_time[tid]);
+								// printf("59: pid after value set: %ld\n", ut->pid);
 								// updated start time to the time when execve happened. Done to reflect what happens in Audit reporter.
 						}
-						proc_end(ut);
+						// proc_end(ut);
 				}
 				if(sysno == SYS_exit_group || sysno == SYS_exit){ // exit_group or exit
 						// Need to set time to zero because it means that time hasn't been set for this process.

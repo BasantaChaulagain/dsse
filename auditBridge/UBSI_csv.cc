@@ -32,26 +32,39 @@ const struct_sysent sysent[] = {
 #include "syscall_list.h"
 };
 
-string filename_open_tmp(char *buf, int *inode)
+string filename_open_tmp(char *buf, long *inode, int *flag)
 {
-		char *ptr = buf, *ptr2;
+		char *ptr = buf;
+		char *ptr2, ptr3[1000], *temp;
 		int fd;
 		string nametype, filename, path, cwd;
 		stringstream str;
-		
-		while( (ptr=strstr(ptr, "type=PATH")) != NULL) {
-				ptr2 = strstr(ptr, "nametype=NORMAL");
-				if(ptr2 == NULL) ptr2 = strstr(ptr, "nametype=CREATE");
-				if(ptr2 != NULL)
-				{
-						path = extract_string(ptr, "name=");
-						if(extract_int(ptr, " inode=", inode) == 0) *inode=0;
-						break;
-				}
-				ptr++;
+
+		while( (temp=strstr(ptr, "type=PATH")) != NULL) {
+			string line, delimiter_ = "\n";
+			int pos = 0;
+			string s = string(temp);
+			while ((pos = s.find(delimiter_)) != std::string::npos){
+					line = s.substr(0, pos);
+					strcpy(ptr3, line.c_str());
+					// printf("line: %s, kw: %s\n", ptr3, keyword1);
+					ptr2 = strstr(ptr3, "nametype=NORMAL");
+					if(ptr2 == NULL){
+						ptr2 = strstr(ptr3, "nametype=CREATE");
+						if (ptr2!=NULL)
+							*flag = 1;
+					}
+					if(ptr2 != NULL)
+					{
+							path = extract_string(ptr3, "name=");
+							if(extract_long(ptr3, " inode=", inode) == 0) *inode=0;
+					}
+					s.erase(0, pos + delimiter_.length());
+			}
+			strcpy(temp, s.c_str());
 		}
-		
-		if(ptr2 == NULL) {
+
+		if(path.empty()) {
 				fprintf(stderr, "!!Cannot find a proper path: %s\n", buf);
 				return string();
 		}
@@ -64,16 +77,20 @@ string filename_open_tmp(char *buf, int *inode)
 				path.insert(0, cwd);
 		}
 */
-		return string(path);
+		// printf("filename_open_tmp: %s, %ld\n", path.c_str(), *inode);
+		return path;
 }
 
 string compose_fd(char *buf, const char *type, const char *keyword1, const char *keyword2, const char *keyword3, const char* keyword4, int fd, const char* ip, const char *port)
 {
+	// printf("buf: %s\n", buf);
 		char *ptr = buf;
-		char *ptr2;
-		int inode;
+		char *ptr2, ptr3[1000], *temp;
+		long inode;
 		string filename, path, cwd;
 		stringstream str;
+		// FILE *testout2;
+		// testout2 = fopen("./testout2", "a+");
 
 		if(buf == NULL) { // return empty fd events.
 				if(fd > 0) str << fd << DELIMITER; //fd[n].num;
@@ -91,19 +108,28 @@ string compose_fd(char *buf, const char *type, const char *keyword1, const char 
 				return string(str.str());
 		}
 		
-		while( (ptr=strstr(ptr, "type=PATH")) != NULL) {
-				ptr2 = strstr(ptr, keyword1);
-				if(ptr2 == NULL && keyword2) ptr2 = strstr(ptr, keyword2);
-				if(ptr2 == NULL && keyword3) ptr2 = strstr(ptr, keyword3);
-				if(ptr2 == NULL && keyword4) ptr2 = strstr(ptr, keyword4);
+		while( (temp=strstr(ptr, "type=PATH")) != NULL) {
+			string line, delimiter_ = "\n";
+			int pos = 0;
+			string s = string(temp);
+			while ((pos = s.find(delimiter_)) != std::string::npos){
+					line = s.substr(0, pos);
+					strcpy(ptr3, line.c_str());
+					// printf("line: %s, kw: %s\n", ptr3, keyword1);
+					ptr2 = strstr(ptr3, keyword1);
+					if(ptr2 == NULL && keyword2) ptr2 = strstr(ptr3, keyword2);
+					if(ptr2 == NULL && keyword3) ptr2 = strstr(ptr3, keyword3);
+					if(ptr2 == NULL && keyword4) ptr2 = strstr(ptr3, keyword4);
+					if(ptr2 != NULL)
+					{
+							path = extract_string(ptr3, "name=");
+							if(extract_long(ptr3, " inode=", &inode) == 0) inode=0;
+							// fprintf(testout2, "path:%s, inode:%ld, ptr:%s\n", path.c_str(), inode, ptr3);
+					}
 
-				if(ptr2 != NULL)
-				{
-						path = extract_string(ptr, "name=");
-						if(extract_int(ptr, " inode=", &inode) == 0) inode=0;
-						break;
-				}
-				ptr++;
+					s.erase(0, pos + delimiter_.length());
+			}
+			strcpy(temp, s.c_str());
 		}
 		
 		if(path.empty()) {
@@ -135,6 +161,8 @@ string compose_fd(char *buf, const char *type, const char *keyword1, const char 
 		if(port) str << port << DELIMITER;
 		else str << DELIMITER;
 
+		// fclose(testout2);
+
 		return string(str.str());
 }
 
@@ -142,7 +170,7 @@ string compose_proc(char *buf)
 {
 		// parse type=EXECVE, it contains target path and arguments
 		int narg;
-		int inode;
+		long inode;
 		char *ptr;
 		char arg_t[16];
 		bool notFirst;
@@ -187,7 +215,7 @@ string compose_proc(char *buf)
 								path = extract_string(ptr, " name=");
 								string last = path.substr(path.size() - filename.size());
 								if(last.compare(filename) == 0) {
-										if(extract_int(ptr, " inode=", &inode) == 0) {
+										if(extract_long(ptr, " inode=", &inode) == 0) {
 												fprintf(stderr, "!! fail to find inode: %s\n", ptr);
 												inode = 0;
 										}
@@ -288,26 +316,32 @@ void CSV_execve(unit_table_t *ut, char *buf)
 		proc = compose_proc(buf);
 
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
-void CSV_file_open(unit_table_t *ut, char *buf)
+void CSV_file_open(unit_table_t *ut, char *buf, int flag)
 {
 		string common, proc, s_fd0, s_fd1, dep;
+		char flag_c[4];
 		int fd;
 
 		extract_int(buf, " exit=", &fd);
 
 		common = CSV_common(ut, buf, NULL);
-		s_fd0 = compose_fd(buf, "file", "nametype=NORMAL", "nametype=CREATE", NULL, NULL, fd, NULL, NULL);
+		char *temp = (char *)malloc(strlen(buf)+1);
+		strcpy(temp, buf);
+		s_fd0 = compose_fd(temp, "file", "nametype=NORMAL", "nametype=CREATE", NULL, NULL, fd, NULL, NULL);
 		s_fd1 = compose_fd(NULL, NULL , NULL, NULL, NULL, NULL, 0, NULL, NULL);
 		proc = compose_proc(buf);
 
 		dep.append(DELIMITER); dep.append(DELIMITER);
-		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
+		sprintf(flag_c, "%d", flag);
+		strcat(flag_c, DELIMITER);
+		printf("%s%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str(), flag_c);
 }
 
-void CSV_access_by_fd(unit_table_t *ut, char *buf, int fd, char* name, int inode, const char *type)
+void CSV_access_by_fd(unit_table_t *ut, char *buf, int fd, char* name, long inode, const char *type)
 {
 		int res;
 		string common, proc, s_fd0, s_fd1, dep;
@@ -340,6 +374,8 @@ void CSV_access_by_fd(unit_table_t *ut, char *buf, int fd, char* name, int inode
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
+		// printf("printing csv_by_fd.\n");
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -354,6 +390,7 @@ void CSV_file_access_by_name(unit_table_t *ut, char *buf, int sysno)
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -367,6 +404,7 @@ void CSV_default(unit_table_t *ut, char *buf)
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -383,6 +421,7 @@ void CSV_socket(unit_table_t *ut, char *buf, const char *sockaddr, int fd)
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -401,6 +440,7 @@ void CSV_socket2(unit_table_t *ut, char *buf, const char *sockaddr, int fd, cons
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -414,6 +454,7 @@ void CSV_pipe(unit_table_t *ut, char *buf, int fd0, int fd1)
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -422,12 +463,17 @@ void CSV_link(unit_table_t *ut, char *buf, int sysno, int fd0, int fd1)
 		string common, proc, s_fd0, s_fd1, dep;
 
 		common = CSV_common(ut, buf, NULL);
-		s_fd0 = compose_fd(buf, "file", "nametype=", NULL, NULL, NULL, fd0, NULL, NULL);
+		char *temp = (char *)malloc(strlen(buf)+1);
+		strcpy(temp, buf);
+		s_fd0 = compose_fd(temp, "file", "nametype=", NULL, NULL, NULL, fd0, NULL, NULL);
+		strcpy(temp, buf);
 		s_fd1 = compose_fd(buf, "file", "nametype=CREATE", NULL, NULL, NULL, fd1, NULL, NULL);
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
+		free(temp);
 }
 
 void CSV_unlink(unit_table_t *ut, char *buf)
@@ -440,6 +486,7 @@ void CSV_unlink(unit_table_t *ut, char *buf)
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -448,16 +495,21 @@ void CSV_rename(unit_table_t *ut, char *buf, int sysno, int fd0, int fd1)
 		string common, proc, s_fd0, s_fd1, dep;
 
 		common = CSV_common(ut, buf, NULL);
-		s_fd0 = compose_fd(buf, "file", "nametype=DELETE", NULL, NULL, NULL, fd0, NULL, NULL);
-		s_fd1 = compose_fd(buf, "file", "nametype=CREATE", NULL, NULL, NULL, fd1, NULL, NULL);
+		char *temp = (char *)malloc(strlen(buf)+1);
+		strcpy(temp, buf);
+		s_fd0 = compose_fd(temp, "file", "nametype=DELETE", NULL, NULL, NULL, fd0, NULL, NULL);
+		strcpy(temp, buf);
+		s_fd1 = compose_fd(temp, "file", "nametype=CREATE", NULL, NULL, NULL, fd1, NULL, NULL);
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
+		free(temp);
 }
 
-void CSV_sendfile(unit_table_t *ut, char *buf, int in_fd, char *in_name, int in_inode, 
-                 int out_fd, bool out_socket, char *out_name, int out_inode)
+void CSV_sendfile(unit_table_t *ut, char *buf, int in_fd, char *in_name, long in_inode, 
+                 int out_fd, bool out_socket, char *out_name, long out_inode)
 {
 		string common, proc, s_fd0, s_fd1, dep;
 		char family[256], addr[256], port[256];
@@ -523,6 +575,7 @@ void CSV_sendfile(unit_table_t *ut, char *buf, int in_fd, char *in_name, int in_
 		}
 
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -553,6 +606,7 @@ void CSV_netio(unit_table_t *ut, char *buf, int fd, const char* fd_name, const c
 		proc = compose_proc(buf);
 		
 		dep.append(DELIMITER); dep.append(DELIMITER);
+		dep.append(DELIMITER);
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }
 
@@ -609,6 +663,7 @@ void CSV_UBSI(unit_table_t *ut, char *buf, const char *evtType, const char *depT
 		if(depUnitid) str << depUnitid << DELIMITER;
 		else str << DELIMITER;
 		dep.append(str.str());
+		dep.append(DELIMITER);
 
 		printf("%s%s%s%s%s\n", common.c_str(), s_fd0.c_str(), s_fd1.c_str(), proc.c_str(), dep.c_str());
 }

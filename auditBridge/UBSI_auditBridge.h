@@ -75,7 +75,7 @@ typedef struct fd_t {
 		};
 		long fd;
 		char name[1024]; // filename or local sock
-		int inode;
+		long inode;
 		fd_type type; // 1: normal file, 2: socket, 3:pipe
 		int isImportant;
 		UT_hash_handle hh;
@@ -158,11 +158,11 @@ typedef struct thread_group_t{
 
 extern int UBSIAnalysis;
 
-string filename_open_tmp(char *buf, int *inode);
+string filename_open_tmp(char *buf, long *inode, int *flag);
 void CSV_execve(unit_table_t *ut, char *buf);
-void CSV_file_open(unit_table_t *ut, char *buf);
+void CSV_file_open(unit_table_t *ut, char *buf, int flag);
 void CSV_file_access_by_name(unit_table_t *ut, char *buf, int sysno);
-void CSV_access_by_fd(unit_table_t *ut, char *buf, int fd, char* name, int inode, const char *type);
+void CSV_access_by_fd(unit_table_t *ut, char *buf, int fd, char* name, long inode, const char *type);
 void CSV_default(unit_table_t *ut, char *buf);
 void CSV_socket(unit_table_t *ut, char *buf, const char *sockaddr, int fd);
 void CSV_socket2(unit_table_t *ut, char *buf, const char *sockaddr, int fd, const char *remote);
@@ -170,6 +170,6 @@ void CSV_pipe(unit_table_t *ut, char *buf, int fd0, int fd1);
 void CSV_link(unit_table_t *ut, char *buf, int sysno, int fd0, int fd1);
 void CSV_unlink(unit_table_t *ut, char *buf);
 void CSV_rename(unit_table_t *ut, char *buf, int sysno, int fd0, int fd1);
-void CSV_sendfile(unit_table_t *ut, char *buf, int in_fd, char *in_name, int in_inode, int out_fd, bool out_socket, char *out_name, int out_inode);
+void CSV_sendfile(unit_table_t *ut, char *buf, int in_fd, char *in_name, long in_inode, int out_fd, bool out_socket, char *out_name, long out_inode);
 void CSV_netio(unit_table_t *ut, char *buf, int fd, const char* fd_name, const char *local_addr, const char *remote_addr);
 void CSV_UBSI(unit_table_t *ut, char *buf, const char *evtType, const char *depTid, const char *depUnitid);
