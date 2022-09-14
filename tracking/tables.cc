@@ -60,7 +60,7 @@ string get_absolute_path(fd_el_t *fd_el, int num)
 		
 		if(fd_el->num_path <= num) return string();
 
-		if(fd_el->path[num][0] != '/') {
+		if(fd_el->path[num][0] != '/' && fd_el->path[num][0] != '.') {
 				return string(fd_el->cwd + "/" + fd_el->path[num]);
 		}
 		return string(fd_el->path[num]);
@@ -168,7 +168,7 @@ unit_list_t *get_unit_list(int tid, int unitid)
 		HASH_FIND(hh, pt->unit_table, &ud, sizeof(unit_el_t), ut);
 		if(ut == NULL) return NULL;
 
-		clusterid = ut->clusterid;
+		clusterid = -1;
 		HASH_FIND_INT(pt->unit_cluster, &clusterid, uc);
 
 		if(uc == NULL) return NULL;
@@ -246,7 +246,7 @@ cluster_el_t get_cluster(int tid, int unitid)
 				insert_single_unit(pt, tid, unitid);
 				HASH_FIND(hh, pt->unit_table, &ud, sizeof(unit_el_t), ut);
 		}
-		ret.clusterid = ut->clusterid;
+		ret.clusterid = -1;
 		ret.pid = pt->pid;
 
 		return ret;
@@ -304,7 +304,7 @@ bool is_tainted_unit(process_table_t *pt, int tid, int unitid)
 				return false;
 		}
 //		assert(ut);
-		clusterid = ut->clusterid;
+		clusterid = -1;
 		// debugtrack("is tainted unit: %d\n", is_tainted_unit(pt, clusterid));
 		return is_tainted_unit(pt, clusterid);
 }
@@ -355,7 +355,7 @@ bool taint_unit(process_table_t *pt, int tid, int unitid, string path)
 				insert_single_unit(pt, tid, unitid);
 				HASH_FIND(hh, pt->unit_table, &ud, sizeof(unit_el_t), ut);
 		}
-		int clusterid = ut->clusterid;
+		int clusterid = -1;
 		
 		if(is_tainted_unit(pt, clusterid)) return false;
 
@@ -397,7 +397,7 @@ bool taint_all_units_in_pid(int pid, string path)
 				insert_single_unit(pt, pid, -1);
 				HASH_FIND(hh, pt->unit_table, &ud, sizeof(unit_el_t), ut);
 		}
-		int clusterid = ut->clusterid;
+		int clusterid = -1;
 		if(is_tainted_unit(pt, -1)) return false;
 
 		// if(is_tainted_unit(get_process_table(pid), -1)) return false;
@@ -461,7 +461,10 @@ void edge_proc_to_file(int tid, int unitid, long inode, long eid)
 		cluster_el_t cl = get_cluster(tid, unitid);
 		inode_t id = find_inode(inode, eid);
 		
-		sprintf(tmp, "P%d_%d -> F%ld_%ld", cl.pid, cl.clusterid, id.inode, id.created_eid);
+		if (cl.clusterid == -1)
+			sprintf(tmp, "P%d_%c -> F%ld_%ld", cl.pid, 'x', id.inode, id.created_eid);
+		else
+			sprintf(tmp, "P%d_%d -> F%ld_%ld", cl.pid, cl.clusterid, id.inode, id.created_eid);
 
 		edge_list.insert(string(tmp));
 }
@@ -472,7 +475,10 @@ void edge_file_to_proc(int tid, int unitid, long inode, long eid)
 		cluster_el_t cl = get_cluster(tid, unitid);
 		inode_t id = find_inode(inode, eid);
 
-		sprintf(tmp, "F%ld_%ld -> P%d_%d", id.inode, id.created_eid, cl.pid, cl.clusterid);
+		if (cl.clusterid == -1)
+			sprintf(tmp, "F%ld_%ld -> P%d_%c", id.inode, id.created_eid, cl.pid, 'x');
+		else
+			sprintf(tmp, "F%ld_%ld -> P%d_%d", id.inode, id.created_eid, cl.pid, cl.clusterid);
 
 		edge_list.insert(string(tmp));
 }
@@ -486,7 +492,19 @@ void edge_proc_to_proc(int from_tid, int from_unitid, int to_pid)
 
 		HASH_ITER(hh, tainted_cluster, tt, tp) {
 				if(tt->id.pid == to_pid) {
-						sprintf(tmp, "P%d_%d -> P%d_%d", cl.pid, cl.clusterid, tt->id.pid, tt->id.clusterid);
+						if (tt->id.clusterid == -1){
+							if (cl.clusterid == -1)
+								sprintf(tmp, "P%d_%c -> P%d_%c", cl.pid, 'x', tt->id.pid, 'x');
+							else
+								sprintf(tmp, "P%d_%d -> P%d_%c", cl.pid, cl.clusterid, tt->id.pid, 'x');
+						}
+						else{
+							if (cl.clusterid == -1)
+								sprintf(tmp, "P%d_%x -> P%d_%d", cl.pid, 'x', tt->id.pid, tt->id.clusterid);
+							else
+								sprintf(tmp, "P%d_%d -> P%d_%d", cl.pid, cl.clusterid, tt->id.pid, tt->id.clusterid);
+						}
+						
 						edge_list.insert(string(tmp));
 				}
 		}
@@ -496,7 +514,11 @@ void edge_socket_to_proc(int tid, int unitid, int socket)
 {
 		char tmp[1024];
 		cluster_el_t cl = get_cluster(tid, unitid);
-		sprintf(tmp, "S%d -> P%d_%d", socket, cl.pid, cl.clusterid);
+
+		if (cl.clusterid == -1)
+			sprintf(tmp, "S%d -> P%d_%c", socket, cl.pid, 'x');
+		else
+			sprintf(tmp, "S%d -> P%d_%d", socket, cl.pid, cl.clusterid);
 
 		edge_list.insert(string(tmp));
 }
@@ -505,7 +527,11 @@ void edge_proc_to_socket(int tid, int unitid, int socket)
 {
 		char tmp[1024];
 		cluster_el_t cl = get_cluster(tid, unitid);
-		sprintf(tmp, "P%d_%d -> S%d", cl.pid, cl.clusterid, socket);
+		
+		if (cl.clusterid == -1)
+			sprintf(tmp, "P%d_%c -> S%d", cl.pid, 'x', socket);
+		else
+			sprintf(tmp, "P%d_%d -> S%d", cl.pid, cl.clusterid, socket);
 
 		edge_list.insert(string(tmp));
 }
@@ -552,6 +578,8 @@ long check_inode_list(long inode, string *path, double *backtrack_ts)
 		HASH_FIND(hh, inode_table, &inode, sizeof(long), it);
 		if(it == NULL) {
 				printf("Inode %ld is not in the table.\n", inode);
+				*path = "start_node";
+				*backtrack_ts = 0;
 				return -1;
 		}
 		if(it->list.size() == 1) {

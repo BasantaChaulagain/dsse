@@ -57,13 +57,16 @@ void emit_graph(FILE *fp)
 		fprintf(fp, "digraph callgraph {\n\n");
 
 		HASH_ITER(hh, tainted_cluster, tc, tc_tmp) {
-				fprintf(fp, "node[shape=oval, label=\"%s\"] P%d_%d;\n", tc->path.c_str(), tc->id.pid, tc->id.clusterid);
+			 	if(tc->id.clusterid == -1)
+					fprintf(fp, "node[shape=oval, label=\"%s; %d\"] P%d_%c;\n", tc->path.c_str(), tc->id.pid, tc->id.pid, 'x');
+				else
+					fprintf(fp, "node[shape=oval, label=\"%s; %d\"] P%d_%d;\n", tc->path.c_str(), tc->id.pid, tc->id.pid, tc->id.clusterid);
 				num_proc++;
 		}
 	
 		fprintf(fp, "\n");
 		HASH_ITER(hh, tainted_inode, in, in_tmp) {
-				fprintf(fp, "node[shape=box, label=\"%s\"] F%ld_%ld;\n", in->name.c_str(), in->inode.inode, in->inode.created_eid);
+				fprintf(fp, "node[shape=box, label=\"%s; %ld\"] F%ld_%ld;\n", in->name.c_str(), in->inode.inode, in->inode.inode, in->inode.created_eid);
 				num_file++;
 		}
 	

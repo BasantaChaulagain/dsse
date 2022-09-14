@@ -6,7 +6,7 @@
 #define MAX_PATH 10
 // #define DEBUGBT
 // #define DEBUGTAINT
-#define DEBUGTRACK
+// #define DEBUGTRACK
 // #define DEBUGNOW 1
 // #define DEBUG 1
 
