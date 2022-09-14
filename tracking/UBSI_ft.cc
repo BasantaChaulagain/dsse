@@ -136,14 +136,16 @@ void exec_handler(int sysno, long eid, int tid, string exe, long inode, double t
 
 void ft_syscall_handler(char * buf, double ts, double* forward_ts, int* flag)
 {
-		char *ptr, args[100], list[12][100];
+		char *ptr, args[100], list[12][256];
 		int i=0, j=0, sysno, fd, ret, tid;
 		string exe, cwd, path;
 		long eid, inode, a1;
 
 		ptr = strtok(buf, ";");
 		while (ptr != NULL){
-			if(i==0 || i==2 || i==3 || i==4 || i==7 || i==10 || i==14 || i==17 || i==18 || i==28 || i==30 || i==31){
+			if(i==3)
+				strncpy(list[j++], ptr, 255);
+			if(i==0 || i==2 || i==4 || i==7 || i==10 || i==14 || i==17 || i==18 || i==28 || i==30 || i==31){
 				strcpy(list[j++], ptr);
 			}
 			ptr = strtok(NULL, ";");
@@ -193,7 +195,7 @@ void ft_syscall_handler(char * buf, double ts, double* forward_ts, int* flag)
 void table_scan_f(int user_pid, long user_inode)
 {
 	FILE* pp;
-	char buf[10000][530];
+	char buf[10000][600];
 	// int eid_list[10000], eid_index=0;
 	int keywords[1000] = {0};
 	int i, k, start_index = 0, stop_index, first_iteration = 1;
@@ -205,30 +207,48 @@ void table_scan_f(int user_pid, long user_inode)
 	if (user_pid>0) keywords[0] = user_pid;
 	else if (user_inode>0) keywords[0] = int(user_inode);
 	debugtrack("keywords[0]: %d\n", keywords[0]);
-	int q=0;	
+	int q=0;
 
 	do {
-			char line[530];
+			char line[4096];
 			string search_string = query + to_string(keywords[keyword_search_index++]);
 			printf("\nsearch string: %s\n", search_string.c_str());
 			pp = popen(search_string.c_str(), "r");
 
-			while(fgets(line, 530, pp) != NULL){\
+			while(fgets(line, 4096, pp) != NULL){
 				if (strtol(line, NULL, 10) == 0)
 					continue;
 
-				char temp[530], *ptr;
+				char temp[4096], *ptr;
 				strcpy(temp, line);
 				ptr = strtok(temp, ";");
 				ptr = strtok(NULL, ";");
 				ptr = strtok(NULL, ";");
-				if (strncmp(ptr, " UBSI_ENTRY", 11)==0 || strncmp(ptr, " UBSI_EXIT", 10)==0)
+				if (strncmp(ptr, " UBSI_ENTRY", 11)==0 || strncmp(ptr, " UBSI_EXIT", 10)==0 || strncmp(ptr, " UBSI_DEP", 9)==0)
 					continue;
 				ptr = strtok(ptr, "(");
 				ptr = strtok(NULL, ")");
 				int sysno = atoi(ptr);
 				if (is_file_create(sysno)==0 && is_exec(sysno)==0 && is_write(sysno)==0 && is_read(sysno)==0 && is_fork_or_clone(sysno)==0)
 					continue;
+
+				if(strlen(line) > 600){
+					char t[4096], *ptr;
+					strcpy(t, line);
+					line[0] = '\0';
+					
+					ptr = strtok(t, ";");
+					while (ptr != NULL){
+						if(strlen(ptr)>255){
+							ptr[255]='\0';
+						}
+						strcat(line, ptr);
+						strcat(line, ";");
+						
+						ptr = strtok(NULL, ";");
+					}
+					line[strlen(line)]='\0';
+				}
 
 				strcpy(buf[buf_add_index++], line);
 			}
@@ -237,7 +257,7 @@ void table_scan_f(int user_pid, long user_inode)
 			stop_index = buf_add_index-1;
 			for (k=start_index; k<=stop_index; k++){
 					int flag=0, new_eid=1, l;	// flag is to denote if the event has been tainted.
-					char temp[530];
+					char temp[600];
 					strcpy(temp, buf[k]);
 					long eid = strtol(temp, NULL, 10);
 					double ts = stod(temp+10);
@@ -411,7 +431,8 @@ int main(int argc, char** argv)
 		if(user_inode > 0) {
 				string path;
 				long user_eid = check_inode_list(user_inode, &path, &forward_ts);
-				if(user_eid < 0) return 1;
+				if(user_eid < 0) 
+					taint_inode(user_inode, user_eid, path);
 				debugtaint("taint inode from initial : %ld [%ld]\n", user_inode, user_eid);
 				if (path[0] == ' ') path = path.substr(1);
 				taint_inode(user_inode, user_eid, path);
@@ -424,7 +445,7 @@ int main(int argc, char** argv)
 				table_scan_f(user_pid, user_inode);
 		}
 
-		fp = fopen("AUDIT_ft.graph", "w");
+		fp = fopen("AUDIT_ft.gv", "w");
 
 		emit_graph(fp);
 		emit_graph_detail(fp);

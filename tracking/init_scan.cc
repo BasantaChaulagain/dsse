@@ -379,17 +379,17 @@ void file_fd_handler(char *buf, long eid, fd_table_t *ft)
 void update_inode_table_(int sysno, long eid, time_t time, unsigned int mil, long inode, char* type, char* name){
 		char *ptr;
 		inode_table_t *it;
-		printf("%ld: update inode table for inode:%ld, name:%s\n", eid, inode, name);
+		debugtrack("%ld: update inode table for inode:%ld, name:%s\n", eid, inode, name);
 
 		HASH_FIND_LONG(inode_table, &inode, it);
 		if(it == NULL)
 		{
-			// printf("inode not found in table. %ld, %ld\n", inode, eid);
+			debugtrack("inode not found in table. %ld, %ld\n", inode, eid);
 				it = new inode_table_t;
 				it->inode = inode;
 				inode_el_t el;
 				el.name = name;
-				if (is_file_create(sysno) || sysno == SYS_open){
+				if (is_file_create(sysno) || sysno == SYS_open || sysno == SYS_openat){
 					el.created_eid = eid;
 					el.created_time = time;
 					el.created_time_mil = mil;
@@ -403,6 +403,7 @@ void update_inode_table_(int sysno, long eid, time_t time, unsigned int mil, lon
 				}
 				it->list.push_back(el);
 				HASH_ADD(hh, inode_table, inode, sizeof(long), it);
+				debugtrack("inode added to table. %ld, %ld, %ld\n", inode, eid, time);
 		}
 
 		// scan the entire list to see if the name already exists.
@@ -419,10 +420,10 @@ void update_inode_table_(int sysno, long eid, time_t time, unsigned int mil, lon
 			}
 		}
 		if(path_exists == 0){
-			// printf("Adding another inode_el_t to inode:%ld, name:%s\n", it->inode, name);
+			debugtrack("Adding another inode_el_t to inode:%ld, name:%s, eid:%ld\n", it->inode, name, eid);
 			inode_el_t el;
 			el.name = name;
-			if (is_file_create(sysno)|| sysno == SYS_open){
+			if (is_file_create(sysno)|| sysno == SYS_open || sysno == SYS_openat || sysno == SYS_rename){
 				el.created_eid = eid;
 				el.created_time = time;
 				el.created_time_mil = mil;
@@ -517,7 +518,7 @@ void fd_handler(char *buf, int tid, int sysno)
 }
 
 int get_sysno(char *syscall){
-	if (strcmp(syscall, " UBSI_ENTRY")==0 || strcmp(syscall, " UBSI_EXIT")==0) return -1;
+	if (strcmp(syscall, " UBSI_ENTRY")==0 || strcmp(syscall, " UBSI_EXIT")==0 || strcmp(syscall, " UBSI_DEP")==0) return -1;
 	char *ptr = strtok(syscall, "(");
 	ptr = strtok(NULL, ")");
 
@@ -531,14 +532,19 @@ int get_tid(char *tid){
 
 void init_event_handler(char *buf)
 {
-	// printf("buf: %s", buf);
+	// printf("%s", buf);
 	int i = 0, sysno;
-	char list[34][200], *ptr;
+	char list[35][256], *ptr;
 	long a0, a1, a2, pid, ppid, ret, tid, eid;
 	ptr = strtok(buf, ";");
 
 	while (ptr != NULL){
-		strcpy(list[i++], ptr);
+		char tmp[4096];
+		strcpy(tmp, ptr);
+		if(strncmp(tmp, " a[0]", 5) == 0)
+			strncpy(list[i++], tmp, 255);
+		else
+			strcpy(list[i++], ptr);
 		ptr = strtok(NULL, ";");
 	}
 	num_syscall++;
@@ -612,7 +618,7 @@ void init_event_handler(char *buf)
 					update_inode_table_(sysno, eid, time, mil, fd1_inode, fd1_type, fd1_name);
 			}
 			if ((sysno == SYS_open || sysno == SYS_openat) && flag==1){
-				printf("eid: %ld, flag: %d\n", eid, flag);
+				// printf("eid: %ld, flag: %d\n", eid, flag);
 					update_inode_table_(sysno, eid, time, mil, fd0_inode, fd0_type, fd0_name);
 			}
 	} 
@@ -1234,7 +1240,7 @@ void save_process_table(FILE *fp)
 				fwrite(&(pt->pid), sizeof(int), 1, fp);
 				fwrite(&(pt->next_cluster_id), sizeof(int), 1, fp);
 
-				debug("\tsave_process_table: proc %d\n", pt->pid);
+				// printf("\tsave_process_table: proc %d\n", pt->pid);
 				// printf("%d\t=====\t", pt->pid);
 
 				n_unit_cluster += save_unit_cluster(pt->unit_cluster, fp);

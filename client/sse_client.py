@@ -254,6 +254,7 @@ class SSE_Client():
         lookup_table = file.get_lookup_table()
 
         # First update index and send it
+        print("updating the index")
         indexes = self.update_index(lookup_table)
         for index in indexes:
             message = jmap.pack(UPDATE, index[0], index[1])
@@ -265,6 +266,7 @@ class SSE_Client():
         
         # Then encrypt msg
         for seg in segments:
+            print("Encrypting segment: ", seg)
             infile = open(seg, "r") 
             outfilename_ = seg.split('/')[1]
             outfilename = "enc/" + outfilename_

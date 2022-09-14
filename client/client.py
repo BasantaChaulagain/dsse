@@ -51,9 +51,6 @@ def main():
  
     sse = SSE_Client()
 
-    print("random")
-    print("Searching remote index for word(s): ", args)
-
     if args.csv_input:
         CSV_INPUT = 1
 
@@ -67,7 +64,6 @@ def main():
         if (DEBUG):
            print(("Searching remote index for word(s): '%s'" 
                   % args.search[0]))
-        print("random")
         sse.search(args.search[0])
 
     elif args.inspect_index:

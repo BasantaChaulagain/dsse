@@ -107,6 +107,7 @@ class FileHandler():
 
     def encode_logs(self):
         for segment in self.segments:
+            print("encoding the segment: ", segment)
             with open(segment, 'r') as seg:
                 for log in seg:
                     lookup_table = self.get_lookup_table()

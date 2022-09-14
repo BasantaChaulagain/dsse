@@ -1521,6 +1521,8 @@ void analyze_syscall(unit_table_t *ut, char* buf, int sysno, bool succ, long a0)
 				char *temp = (char *)malloc(strlen(buf)+1);
 				strcpy(temp, buf);
 				string filePath = filename_open_tmp(temp, &inode, &flag);
+				if (filePath.empty()) return;
+				
 				const char *path = filePath.c_str();
 				if(CSVOUT) CSV_file_open(ut, buf, flag);
 				
