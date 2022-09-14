@@ -108,6 +108,7 @@ class LogHandler:
                     schema_id = self.get_schema_id(value) 
                     self.lt_string = self.lt_string+key_value[0]+'='+'\x11'+schema_id+' '
     
+    
     # function to unparse log that is in csv format
     def unparse_log_csv(self, ts, eid, variables):
         patt = re.compile(r'\x11\d+')
@@ -119,6 +120,7 @@ class LogHandler:
         log = '; '.join(updated_items)
         log = eid + "; " + ts + "; " + log + ";"
         return(log)
+
 
     # function to unparse audit log in key-value pair
     def unparse_log_kv(self, ts, variables):
@@ -132,6 +134,7 @@ class LogHandler:
             updated_kv.append(each)
         log = ' '.join(updated_kv)
         return log
+        
         
     def write_to_vdict(self, segment):
         variable_unique = list(set(self.variable))
@@ -150,7 +153,7 @@ class LogHandler:
                 segment_list = self.vdict[schema_id][var_id][2]
                 if segment not in segment_list:
                     segment_list.append(segment)
-                self.vdict[schema_id][var_id][1] += 1
+                self.vdict[schema_id][var_id][1] += 1       # increment count by 1
 
         
     def write_to_ltdict(self, segment):
@@ -163,7 +166,8 @@ class LogHandler:
             segment_list = self.ltdict[logtype_id][2]
             if segment not in segment_list:
                 segment_list.append(segment)
-            self.ltdict[logtype_id][1] += 1
+            self.ltdict[logtype_id][1] += 1              # increment count by 1
+        
         
     def get_variable_ids(self):
         # get each schema_type from lt_string and lookup each variables in variable list with the the vdict of particular schema type.
@@ -178,6 +182,7 @@ class LogHandler:
         variable_ids = variable_ids.rstrip(',')
         return variable_ids
 
+
     def get_variables_from_id(self):
         variables = []
         pattern = r'(?:\x11)(\d+)'
@@ -188,6 +193,7 @@ class LogHandler:
                 var = var_dict.get(variable_id)[0]
                 variables.append(var)
         return variables
+
 
     # code to encode the message using ltdict and vdict
     def encode(self, log, segment):
@@ -204,6 +210,7 @@ class LogHandler:
         else:
             encoded_message = ts + "," + logtype_id + "," + variable_ids
         return(encoded_message)
+    
     
     #code to decode the message using ltdict and vdict
     def decode(self, encoded_log):
