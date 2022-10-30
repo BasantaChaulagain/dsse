@@ -31,6 +31,7 @@
 #
 ############
 
+from datetime import timedelta
 import os
 import inspect
 import sys
@@ -45,6 +46,7 @@ from flask import Flask
 from flask import request
 from flask import jsonify
 from pathlib import Path
+import time
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
@@ -150,7 +152,7 @@ def update():
 
 @app.route('/search', methods=['POST'])
 def search():
-
+    in_time = time.time()
     if not request.json:
         return jsonify(results='Error: not json')
 
@@ -247,7 +249,10 @@ def search():
         fd = open(path, "rb")
         buf.append(fd.read().decode('latin1'))
         fd.close()
-        
+    
+    out_time = time.time()
+    buf.append(in_time)
+    buf.append(out_time)
     return jsonify(results=buf)
 
 

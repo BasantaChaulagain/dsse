@@ -202,6 +202,11 @@ void table_scan(int user_pid, long user_inode){
 	int i, k, start_index, stop_index = 0, first_iteration = 1;
 	int buf_add_index, buf_search_index, keyword_add_index, keyword_search_index;
 	buf_add_index = buf_search_index = keyword_add_index = keyword_search_index = 0;
+
+	int count_call_to_server = 0;
+	chrono::duration<double> runtime[1000] = {};
+	int total_logs[1000];
+	int lines_in_buf[1000];
 	
 	string query = "python client.py -c 1 -s ";
 
@@ -211,12 +216,19 @@ void table_scan(int user_pid, long user_inode){
 	int q=0;
 
 	do {
+			auto loop_start_ts = chrono::system_clock::now();
+			int total_log_lines = 0;
 			char line[4096];
+			
 			string search_string = query + to_string(keywords[keyword_search_index++]);
 			printf("search string: %s\n", search_string.c_str());
+
+			auto _now = chrono::system_clock::now().time_since_epoch().count();
+			printf("\nSearch sending: %Lf", (long double)(_now)/1000000000);
 			pp = popen(search_string.c_str(), "r");
 
 			while(fgets(line, 4096, pp) != NULL){
+				total_log_lines++;
 				if (strtol(line, NULL, 10) == 0)
 					continue;
 
@@ -252,9 +264,14 @@ void table_scan(int user_pid, long user_inode){
 				}
 				strcpy(buf[buf_add_index++], line);
 			}
+			_now = chrono::system_clock::now().time_since_epoch().count();
+			printf("\nSearch Receiving: %Lf", (long double)(_now)/1000000000);
 
 			debugtrack("Running for buf with index %d to %d\n", buf_add_index-1, stop_index);
 			start_index = buf_add_index-1;
+			lines_in_buf[count_call_to_server] = buf_add_index - stop_index;
+			total_logs[count_call_to_server] = total_log_lines;
+
 			for (k=start_index; k>=stop_index; k--){
 					int flag=0, new_eid=1, l;	// flag is to denote if the event has been tainted.
 					char temp[600];
@@ -336,17 +353,28 @@ void table_scan(int user_pid, long user_inode){
 			// for (i=0; i<=keyword_add_index; i++){
 			// 	printf("%d\t", keywords[i]);
 			// }
+			
 
 			debugtrack("\nnext keyword: %d\n", keywords[keyword_search_index]);
 			debugtrack("lines in buf: %d\n", buf_add_index);
 			pclose(pp);
+
+			auto loop_end_ts = chrono::system_clock::now();
+			printf("Loop ends: %Lf\n", (long double)(loop_end_ts.time_since_epoch().count())/1000000000);
+			printf("Loop time: %Lf\n", (long double)(loop_end_ts.time_since_epoch().count())/1000000000 - (long double)(_now)/1000000000);
+			runtime[count_call_to_server++] = loop_end_ts-loop_start_ts;
 	} while (keywords[keyword_search_index] != 0);
+
+	printf("Total calls to server: %d\n", count_call_to_server);
+	printf("\nkeyword\t#total_logs\t#relevant_logs\truntime\n");
+	for (k=0; k<count_call_to_server; k++)
+		printf("%d\t%d\t%d\t%lf\n", keywords[k], total_logs[k], lines_in_buf[k], runtime[k].count());
 }
 
 
 int main(int argc, char** argv)
 {
-		auto start = chrono::system_clock::now();
+		auto start_ts = chrono::system_clock::now();
 		bool load_init_table = true;
 
 		FILE *fp;
@@ -451,8 +479,8 @@ int main(int argc, char** argv)
 		emit_graph_detail(fp);
 		fclose(fp);
 
-		auto end = chrono::system_clock::now();
-		chrono::duration<double> elapsed_seconds = end-start;
+		auto end_ts = chrono::system_clock::now();
+		chrono::duration<double> elapsed_seconds = end_ts-start_ts;
 		printf("elapsed time: %lf\n", elapsed_seconds.count());
 
 		return 1;

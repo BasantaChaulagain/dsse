@@ -38,11 +38,12 @@ from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto import Random
+from datetime import datetime
 import bcrypt
 import binascii
 import string
 import dbm
-from flask import Flask
+from flask import Flask, jsonify, request
 import requests
 from nltk.stem.porter import PorterStemmer
 import os
@@ -50,6 +51,7 @@ import json
 import re
 import inspect
 import sys
+from time import time
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
@@ -76,8 +78,6 @@ DELIMETER = "++?"
 # to keep some punct in the strings. We're mostly looking to strip the
 # final punct (ie: '.' ',' '!' etc)
 EXCLUDE = string.punctuation
-
-app = Flask(__name__)
 
 def get_schema_id(var):
     for key, value in variable_schema.items():
@@ -246,23 +246,29 @@ class SSE_Client():
 
 
     def update(self, filename):
-        # print("Initial scanning {}\n".format(filename))
-        # os.system('./init_scan {}'.format(filename))
+        begin_ts = datetime.now()
+        
         file = FileHandler(filename)
         segments = file.split_file()
         file.encode_logs()
         lookup_table = file.get_lookup_table()
+        
+        encode_ts = datetime.now()
 
         # First update index and send it
         print("updating the index")
-        indexes = self.update_index(lookup_table)
+        (indexes, update_idx_ts) = self.update_index(lookup_table)
+
         for index in indexes:
             message = jmap.pack(UPDATE, index[0], index[1])
             # print(message)
             r = self.send(UPDATE, message)
-            data = r.json()
-            results = data['results']
+            if(type(r) != dict):
+                r = r.json()
+            results = r['results']
             print("Results of Index UPDATE: " + results) 
+            
+        encrypt_idx_ts = datetime.now()
         
         # Then encrypt msg
         for seg in segments:
@@ -280,11 +286,19 @@ class SSE_Client():
 
             # Then send message
             r = self.send(ADD, message, outfilename)        
-            data = r.json()
-            results = data['results']
+            if(type(r) != dict):
+                r = r.json()
+            results = r['results']
             print("Results of UPDATE/ADD FILE: " + results)
 
             outfile.close()
+        
+        encrypt_ts = datetime.now()
+        
+        print("\nStats (time required):")
+        print("Encode segments: {}\nUpdate index: {}\nEncrypt index: {}\nEncrypt segments: {}\n"
+              .format(encode_ts-begin_ts, update_idx_ts-encode_ts, encrypt_idx_ts-update_idx_ts, encrypt_ts-encrypt_idx_ts))
+        print("Encoding: {}\nEncrypting: {}\nTotal:{}".format(update_idx_ts-begin_ts, encrypt_ts-update_idx_ts, encrypt_ts-begin_ts))
 
 
     def update_index(self, lookup_table):
@@ -311,6 +325,8 @@ class SSE_Client():
             
             index.close()
             index_IDs.close()
+            
+        update_idx_ts = datetime.now()
 
         indexes = []
         vdict_keys = vdict.keys()
@@ -319,8 +335,8 @@ class SSE_Client():
             ind_id = "indexes/"+str(i)+"_index_IDs"
             index = self.encryptIndex(ind, ind_id)
             indexes.append((index, i))
-
-        return indexes
+            
+        return (indexes, update_idx_ts)
 
 
     def encryptIndex(self, index, index_IDs):
@@ -361,8 +377,10 @@ class SSE_Client():
 
 
     def search(self, query):
+        return_result = ""
         query = query.split()
         print("query: ", query)
+        return_result += "metainfo: %s\n" % time()
 
         # Generate list of querys (may be just 1)
         L = []
@@ -377,8 +395,8 @@ class SSE_Client():
             if (os.path.exists(index_file)):
                 index = dbm.open(index_file, "r")
             else:
-                print("Search keyword not found")
-                return -1
+                return_result += "Search keyword not found\n"
+                return return_result
 
             # For each term of query, first try to see if it's already in
             # index. If it is, send c along with k1 and k2. This will 
@@ -410,32 +428,31 @@ class SSE_Client():
         message = jmap.pack(SEARCH, L, ids)
 
         # Send data and unpack results.
-        r = self.send(SEARCH, message) 
-        # print("r: ", r)
-        ret_data = r.json()
-        # print("ret_data: ", ret_data)
+        ret_data = self.send(SEARCH, message)
+        if(type(ret_data) != dict):
+            ret_data = ret_data.json()
         results = ret_data['results']
-        print("Results of SEARCH:")
+        return_result += "Results of SEARCH:\n"
 
         if results == NO_RESULTS:
-            print(results)
-            return -1
+            return_result += "%s\n" % results
+            return return_result
 
-        # print(results)
+        decoded_message = ''''''
         for i in results:
-            # print(i.encode('latin1'))
             decrypted = self.decryptSegment(i.encode('latin1'), )
-            # print("decrypted: ", decrypted)
             lookup_table = get_lookup_table()
             decrypted_ = decrypted.split('\n')[:-1]
             l = LogHandler(lookup_table)
             for each in decrypted_:
-                # print("before decoding", each)
                 decoded = l.decode(each)
                 for word in query:
                     if re.search(r'\b{}\b'.format(word), decoded):
-                        print(decoded)
-                        # pass
+                        decoded_message += (decoded+'\n')
+        
+        return_result += "metainfo: %s\n" % time()
+        return_result += "%s" % decoded_message
+        return(return_result)
 
     def PRF(self, k, data):
         if type(data) == str:
@@ -474,4 +491,13 @@ class SSE_Client():
 
         # Send to server using requests's post method, and return results
         # to calling method
-        return requests.post(url, data, headers = headers)
+        client_out_time = time()
+        result = requests.post(url, data, headers = headers)
+        client_in_time = time()
+        result_json = result.json()
+        if(len(result_json['results'])>1 and type(result_json['results']) == list):
+            server_out_time = result_json['results'].pop()
+            server_in_time = result_json['results'].pop()
+            print("metainfo:", float(server_in_time)-client_out_time)  # n/w delay when sending
+            print("metainfo:", client_in_time-float(server_out_time))  # n/w delay when receiving
+        return (result_json)
