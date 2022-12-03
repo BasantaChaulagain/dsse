@@ -4,10 +4,7 @@
 #include <sstream>
 #include <chrono>
 #include <ctime>
-#include <netinet/in.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <signal.h>
 #include <Python.h>
 #include "init_scan.h"
 #include "utils.h"
@@ -207,17 +204,18 @@ void table_scan_f(int user_pid, long user_inode)
 		int total_logs[1000];
 	#endif
 	
-		char buf[10000][600];
-		char buffer[1048576];
+		int max_log_len = 500;
+		char* buf = (char*) malloc((200000*max_log_len) * sizeof(char));
+		// char buf[16000][500];
 		// int eid_list[10000], eid_index=0;
-		int keywords[1000] = {0};
+		long keywords[1000] = {0};
 		string next_keyword;
 		int i, k, start_index = 0, stop_index, first_iteration = 1;
 		int buf_add_index, buf_search_index, keyword_add_index, keyword_search_index;
 		buf_add_index = buf_search_index = keyword_add_index = keyword_search_index = 0;
 	
-		if (user_pid>0) keywords[0] = user_pid;
-		else if (user_inode>0) keywords[0] = int(user_inode);
+		if (user_pid>0) keywords[0] = long(user_pid);
+		else if (user_inode>0) keywords[0] = user_inode;
 				
 		PyObject *pName, *pModule, *pFunc, *pArg, *pValue;
 		Py_Initialize();
@@ -244,8 +242,8 @@ void table_scan_f(int user_pid, long user_inode)
 				int total_log_lines = 0;
 				long double meta_data[4];
 				int meta_idx=0;
-				auto c1_send_ts_ = chrono::system_clock::now().time_since_epoch().count();
-				long double c1_send_ts = (long double)(c1_send_ts_)/1000000000;
+				// auto c1_send_ts_ = chrono::system_clock::now().time_since_epoch().count();
+				// long double c1_send_ts = (long double)(c1_send_ts_)/1000000000;
 			#endif
 				
 				char line[4096];
@@ -269,8 +267,8 @@ void table_scan_f(int user_pid, long user_inode)
 				Py_DECREF(pValue);
 					
 			#ifdef GET_STATS
-				auto c1_recv_ts_ = chrono::system_clock::now().time_since_epoch().count();
-				long double c1_recv_ts = (long double)(c1_recv_ts_)/1000000000;
+				// auto c1_recv_ts_ = chrono::system_clock::now().time_since_epoch().count();
+				// long double c1_recv_ts = (long double)(c1_recv_ts_)/1000000000;
 			#endif
 
 				while(getline(ss, line_, '\n')){
@@ -302,15 +300,15 @@ void table_scan_f(int user_pid, long user_inode)
 					if (is_file_create(sysno)==0 && is_exec(sysno)==0 && is_write(sysno)==0 && is_read(sysno)==0 && is_fork_or_clone(sysno)==0)
 						continue;
 
-					if(strlen(line) > 600){
+					if(strlen(line) > 500){
 						char t[4096], *ptr;
 						strcpy(t, line);
 						line[0] = '\0';
 						
 						ptr = strtok(t, ";");
 						while (ptr != NULL){
-							if(strlen(ptr)>255){
-								ptr[255]='\0';
+							if(strlen(ptr)>220){
+								ptr[220]='\0';
 							}
 							strcat(line, ptr);
 							strcat(line, ";");
@@ -319,36 +317,33 @@ void table_scan_f(int user_pid, long user_inode)
 						}
 						line[strlen(line)]='\0';
 					}
-					strcpy(buf[buf_add_index++], line);
+					strcpy(buf + (buf_add_index++ * max_log_len), line);
 				}
 				ss.str(string());
 				
 				stop_index = buf_add_index-1;
 			#ifdef GET_STATS
-				printf("\nIPC send time: %Lf", meta_data[0]-c1_send_ts);
-				printf("\nclient-server send time: %Lf", meta_data[1]);
-				printf("\nclient-server receive time: %Lf", meta_data[2]);
-				printf("\nIPC receive time: %Lf", c1_recv_ts-meta_data[3]);
+				// printf("\nIPC send time: %Lf", meta_data[0]-c1_send_ts);
+				// printf("\nIPC receive time: %Lf", c1_recv_ts-meta_data[1]);
 
 				lines_in_buf[count_call_to_server] = buf_add_index - start_index;
 				total_logs[count_call_to_server] = total_log_lines;
 			#endif
 				
 				debugtrack("Running for buf with index %d to %d\n", start_index, buf_add_index-1);
-				// printf("Running for buf with index %d to %d\n", start_index, buf_add_index-1);
+
 				for (k=start_index; k<=stop_index; k++){
 						int flag=0, new_eid=1, l;	// flag is to denote if the event has been tainted.
-						char temp[600];
-						strcpy(temp, buf[k]);
+						char temp[500];
+						strcpy(temp, buf+k*max_log_len);
 						long eid = strtol(temp, NULL, 10);
-						double ts = stod(temp+10);
+						double ts = stod(temp+11);
 
 						if (first_iteration){
-							long kw = long(keywords[keyword_search_index-1]);
+							long kw = keywords[keyword_search_index-1];
 							timestamp_table_t* tt;
 							HASH_FIND(hh, timestamp_table, &kw, sizeof(long), tt);
 							if (tt != NULL){
-								debugtrack("tt is not null. %lf: %d\n", tt->ts, kw);
 								forward_ts = tt->ts;
 							}
 							else{
@@ -368,17 +363,13 @@ void table_scan_f(int user_pid, long user_inode)
 						
 						// printf("ts: %lf, forward_ts: %lf\n", ts, forward_ts);
 						if(ts !=0 && ts >= forward_ts && new_eid == 1){
-							// printf("In ft syscall handler: index: %d\n", k);
-							// printf("calling syscall handler %s\n", temp);
 							ft_syscall_handler(temp, ts, &forward_ts, &flag);
-							// printf("back from syscall handler, flag: %d\n", flag);
 							// eid_list[eid_index++] = (int)eid;
 
 							// extract pid and inode from the logs.
 							if (flag == 1){
 								char *ptr, list[2][12];
-								strcpy(temp, buf[k]);
-								// printf("--------\nExtracting from:\n%s\n-----------\n", temp);
+								strcpy(temp, buf+k*max_log_len);
 								ptr = strtok(temp, ";");
 								int i = 0, j = 0;
 								while(ptr != NULL){
@@ -388,7 +379,7 @@ void table_scan_f(int user_pid, long user_inode)
 									i++;
 								}
 								int pid = atoi(list[0]);
-								int inode = atoi(list[1]);
+								long inode = strtol(list[1], NULL, 10);
 								debugtrack("\npid: %d, inode: %d\n", pid, inode);
 
 								int pid_exist = 0, inode_exist = 0;
@@ -406,45 +397,29 @@ void table_scan_f(int user_pid, long user_inode)
 								}
 								debugtrack("pid_exist %d, inode_exist %d\n", pid_exist, inode_exist);
 								if (pid_exist == 0 && pid > 0)
-									keywords[++keyword_add_index] = pid;
-									// printf("Extracted pid : %d\n", pid);}
+									keywords[++keyword_add_index] = long(pid);
 								if (inode_exist == 0 && inode > 0)
 									keywords[++keyword_add_index] = inode;
-									// printf("Extracted inode : %d\n", inode);}						
 							}
-							
 							// add a line to the new index only if the prev log is tainted, else replace it.
 							if (flag == 0)
 								buf_add_index--;
 						}
 				}
-				int y=0;
-				// printf("kw add index:%d\n", keyword_add_index);
-				// for (y=0; y<=keyword_add_index; y++){
-				// 	printf("%d\t\t", keywords[y]);
-				// }
-				// printf("\n");
 				start_index = buf_add_index;
 				first_iteration = 1;
-				
-				// printf("\nkeywords\t");
-				// for (i=0; i<=keyword_add_index; i++){
-				// 	printf("%d\t", keywords[i]);
-				// }
 
-				debugtrack("\nnext keyword: %d\n", keywords[keyword_search_index]);
+				debugtrack("\nnext keyword: %ld\n", keywords[keyword_search_index]);
 				debugtrack("lines in buf: %d\n", buf_add_index);
 
 			#ifdef GET_STATS
 				auto loop_end_ts = chrono::system_clock::now();
-				printf("\nLoop time: %Lf\n", (long double)(loop_end_ts.time_since_epoch().count())/1000000000 - c1_send_ts);
 				runtime[count_call_to_server++] = loop_end_ts-loop_start_ts;
 			#endif
 		} while (keywords[keyword_search_index] != 0);
 
 		Py_XDECREF(pFunc);
 		Py_DECREF(pModule);
-	
 		if (Py_FinalizeEx() < 0)
 			return;
 	
@@ -452,7 +427,7 @@ void table_scan_f(int user_pid, long user_inode)
 			printf("\nTotal calls to server: %d\n", count_call_to_server);
 			printf("\nkeyword\t#total_logs\t#relevant_logs\truntime\n");
 			for (k=0; k<count_call_to_server; k++)
-				printf("%d\t%d\t%d\t%lf\n", keywords[k], total_logs[k], lines_in_buf[k], runtime[k].count());
+				printf("%ld\t%d\t%d\t%lf\n", keywords[k], total_logs[k], lines_in_buf[k], runtime[k].count());
 		#endif
 	// }
 }

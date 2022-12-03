@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <iostream>
+#include <sstream>
 #include <chrono>
 #include <ctime>
+#include <stdlib.h>
+#include <Python.h>
 #include "init_scan.h"
 #include "utils.h"
 #include "tables.h"
@@ -195,43 +198,93 @@ void bt_syscall_handler_(char * buf, double ts, double* backtrack_ts, int* flag)
 
 
 void table_scan(int user_pid, long user_inode){
-	FILE* pp;
-	char buf[10000][600];
+	#ifdef GET_STATS
+		int count_call_to_server = 0;
+		chrono::duration<double> runtime[1000] = {};
+		int lines_in_buf[1000];
+		int total_logs[1000];
+	#endif
+	
+	int max_log_len = 500;
+	char* buf = (char*) malloc((200000*max_log_len) * sizeof(char));
+	// char buf[16000][500];
 	// int eid_list[10000], eid_index=0;
-	int keywords[1000] = {0};
+	long keywords[1000] = {0};
+	string next_keyword;
 	int i, k, start_index, stop_index = 0, first_iteration = 1;
 	int buf_add_index, buf_search_index, keyword_add_index, keyword_search_index;
 	buf_add_index = buf_search_index = keyword_add_index = keyword_search_index = 0;
-
-	int count_call_to_server = 0;
-	chrono::duration<double> runtime[1000] = {};
-	int total_logs[1000];
-	int lines_in_buf[1000];
 	
-	string query = "python client.py -c 1 -s ";
+	if (user_pid>0) keywords[0] = long(user_pid);
+	else if (user_inode>0) keywords[0] = user_inode;
 
-	if (user_pid>0) keywords[0] = user_pid;
-	else if (user_inode>0) keywords[0] = int(user_inode);
-	debugtrack("keywords[0]: %d\n", keywords[0]);
-	int q=0;
+	PyObject *pName, *pModule, *pFunc, *pArg, *pValue;
+	Py_Initialize();
+	PyRun_SimpleString("import os, sys, inspect\n"
+						"parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))))\n"
+						"sys.path.insert(0, parent_dir)\n");
+	pName = PyUnicode_DecodeFSDefault("client.client");
+	pModule = PyImport_Import(pName);
+	Py_DECREF(pName);
+	if (pModule == NULL){
+		PyErr_Print();
+		return;
+	}
+	pFunc = PyObject_GetAttrString(pModule, "sse_search");
+	if (pFunc==NULL || !PyCallable_Check(pFunc)){
+		printf("Error initializing function.\n");
+		Py_DECREF(pModule);
+		return;
+	}
 
 	do {
-			auto loop_start_ts = chrono::system_clock::now();
-			int total_log_lines = 0;
 			char line[4096];
-			
-			string search_string = query + to_string(keywords[keyword_search_index++]);
-			printf("search string: %s\n", search_string.c_str());
+			string line_;
+			next_keyword = to_string(keywords[keyword_search_index++]);
 
-			auto _now = chrono::system_clock::now().time_since_epoch().count();
-			printf("\nSearch sending: %Lf", (long double)(_now)/1000000000);
-			pp = popen(search_string.c_str(), "r");
+			pArg = PyTuple_New(1);
+			pValue = PyUnicode_FromString(next_keyword.c_str());
+			PyTuple_SetItem(pArg, 0, pValue);
+			#ifdef GET_STATS
+				auto loop_start_ts = chrono::system_clock::now();
+				int total_log_lines = 0;
+				long double meta_data[4];
+				int meta_idx=0;
+				// auto c1_send_ts_ = chrono::system_clock::now().time_since_epoch().count();
+				// long double c1_send_ts = (long double)(c1_send_ts_)/1000000000;
+			#endif
+			pValue = PyObject_CallObject(pFunc, pArg);
+			#ifdef GET_STATS
+				// auto c1_recv_ts_ = chrono::system_clock::now().time_since_epoch().count();
+				// long double c1_recv_ts = (long double)(c1_recv_ts_)/1000000000;
+			#endif
+			Py_DECREF(pArg);
+			if (pValue == NULL) {
+				PyErr_Print();
+				fprintf(stderr,"Call failed\n");
+				Py_XDECREF(pFunc);
+				Py_DECREF(pModule);
+				return;
+			}
+			stringstream ss;
+			ss << PyUnicode_AsUTF8(pValue);
+			Py_DECREF(pValue);
 
-			while(fgets(line, 4096, pp) != NULL){
-				total_log_lines++;
-				if (strtol(line, NULL, 10) == 0)
+			while(getline(ss, line_, '\n')){
+				strcpy(line, line_.c_str());
+				#ifdef GET_STATS
+					total_log_lines++;
+				#endif
+				if (strtol(line, NULL, 10) == 0){
+					#ifdef GET_STATS
+					if (strncmp(line, "metainfo:", 9) == 0){
+						char *ptr = strtok(line, ":");
+						ptr = strtok(NULL, ":");
+						meta_data[meta_idx++] = stold(ptr);
+					}
+					#endif
 					continue;
-
+				}
 				char temp[4096], *ptr;
 				strcpy(temp, line);
 				ptr = strtok(temp, ";");
@@ -245,15 +298,15 @@ void table_scan(int user_pid, long user_inode){
 				if (is_file_create(sysno)==0 && is_exec(sysno)==0 && is_write(sysno)==0 && is_read(sysno)==0 && is_fork_or_clone(sysno)==0)
 					continue;
 
-				if(strlen(line) > 600){
+				if(strlen(line) > max_log_len){
 					char t[4096], *ptr;
 					strcpy(t, line);
 					line[0] = '\0';
 					
 					ptr = strtok(t, ";");
 					while (ptr != NULL){
-						if(strlen(ptr)>255){
-							ptr[255]='\0';
+						if(strlen(ptr)>220){
+							ptr[220]='\0';
 						}
 						strcat(line, ptr);
 						strcat(line, ";");
@@ -262,25 +315,30 @@ void table_scan(int user_pid, long user_inode){
 					}
 					line[strlen(line)]='\0';
 				}
-				strcpy(buf[buf_add_index++], line);
+				strcpy(buf + (buf_add_index++ * max_log_len), line);
 			}
-			_now = chrono::system_clock::now().time_since_epoch().count();
-			printf("\nSearch Receiving: %Lf", (long double)(_now)/1000000000);
+			ss.str(string());
+			start_index = buf_add_index-1;
+
+			#ifdef GET_STATS
+				// printf("IPC send time: %Lf\n", meta_data[0]-c1_send_ts);
+				// printf("IPC receive time: %Lf", c1_recv_ts-meta_data[1]);
+
+				lines_in_buf[count_call_to_server] = buf_add_index - stop_index;
+				total_logs[count_call_to_server] = total_log_lines;
+			#endif
 
 			debugtrack("Running for buf with index %d to %d\n", buf_add_index-1, stop_index);
-			start_index = buf_add_index-1;
-			lines_in_buf[count_call_to_server] = buf_add_index - stop_index;
-			total_logs[count_call_to_server] = total_log_lines;
 
 			for (k=start_index; k>=stop_index; k--){
 					int flag=0, new_eid=1, l;	// flag is to denote if the event has been tainted.
-					char temp[600];
-					strcpy(temp, buf[k]);
+					char temp[500];
+					strcpy(temp, buf+k*max_log_len);
 					long eid = strtol(temp, NULL, 10);
-					double ts = stod(temp+10);
+					double ts = stod(temp+11);
 
 					if (first_iteration){
-						long kw = long(keywords[keyword_search_index-1]);
+						long kw = keywords[keyword_search_index-1];
 						timestamp_table_t* tt;
 						HASH_FIND(hh, timestamp_table, &kw, sizeof(long), tt);
 						if (tt != NULL){
@@ -309,7 +367,7 @@ void table_scan(int user_pid, long user_inode){
 						// extract pid and inode from the logs.
 						if (flag == 1){
 							char *ptr, list[2][12];
-							strcpy(temp, buf[k]);
+							strcpy(temp, buf+k*max_log_len);
 							ptr = strtok(temp, ";");
 							int i = 0, j = 0;
 							while(ptr != NULL){
@@ -319,8 +377,8 @@ void table_scan(int user_pid, long user_inode){
 								i++;
 							}
 							int pid = atoi(list[0]);
-							int inode = atoi(list[1]);
-							debugtrack("\npid: %d, inode: %d\n", pid, inode);
+							long inode = strtol(list[1], NULL, 10);
+							debugtrack("\npid: %d, inode: %ld\n", pid, inode);
 
 							int pid_exist = 0, inode_exist = 0;
 							for (i=0; i<=keyword_add_index; i++){
@@ -337,7 +395,7 @@ void table_scan(int user_pid, long user_inode){
 							}
 							debugtrack("pid_exist %d, inode_exist %d\n", pid_exist, inode_exist);
 							if (pid_exist == 0 && pid > 0)
-								keywords[++keyword_add_index] = pid;
+								keywords[++keyword_add_index] = long(pid);
 							if (inode_exist == 0 && inode > 0)
 								keywords[++keyword_add_index] = inode;
 						}
@@ -348,27 +406,28 @@ void table_scan(int user_pid, long user_inode){
 			}
 			stop_index = buf_add_index;
 			first_iteration = 1;
-			
-			// printf("\nkeywords\t");
-			// for (i=0; i<=keyword_add_index; i++){
-			// 	printf("%d\t", keywords[i]);
-			// }
-			
 
-			debugtrack("\nnext keyword: %d\n", keywords[keyword_search_index]);
+			debugtrack("\nnext keyword: %ld\n", keywords[keyword_search_index]);
 			debugtrack("lines in buf: %d\n", buf_add_index);
-			pclose(pp);
 
-			auto loop_end_ts = chrono::system_clock::now();
-			printf("Loop ends: %Lf\n", (long double)(loop_end_ts.time_since_epoch().count())/1000000000);
-			printf("Loop time: %Lf\n", (long double)(loop_end_ts.time_since_epoch().count())/1000000000 - (long double)(_now)/1000000000);
-			runtime[count_call_to_server++] = loop_end_ts-loop_start_ts;
+			#ifdef GET_STATS
+				auto loop_end_ts = chrono::system_clock::now();
+				// printf("\nLoop time: %Lf\n", (long double)(loop_end_ts.time_since_epoch().count())/1000000000 - c1_send_ts);
+				runtime[count_call_to_server++] = loop_end_ts-loop_start_ts;
+			#endif
 	} while (keywords[keyword_search_index] != 0);
 
-	printf("Total calls to server: %d\n", count_call_to_server);
-	printf("\nkeyword\t#total_logs\t#relevant_logs\truntime\n");
-	for (k=0; k<count_call_to_server; k++)
-		printf("%d\t%d\t%d\t%lf\n", keywords[k], total_logs[k], lines_in_buf[k], runtime[k].count());
+	Py_XDECREF(pFunc);
+	Py_DECREF(pModule);
+	if (Py_FinalizeEx() < 0)
+		return;
+
+	#ifdef GET_STATS
+		printf("\nTotal calls to server: %d\n", count_call_to_server);
+		printf("\nkeyword\t#total_logs\t#relevant_logs\truntime\n");
+		for (k=0; k<count_call_to_server; k++)
+			printf("%ld\t%d\t%d\t%lf\n", keywords[k], total_logs[k], lines_in_buf[k], runtime[k].count());
+	#endif
 }
 
 

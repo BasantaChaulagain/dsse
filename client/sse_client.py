@@ -464,7 +464,7 @@ class SSE_Client():
 
 
     def send(self, routine, data, filename = None, in_url = DEFAULT_URL):
-        print("sending to ", in_url)
+        # print("sending to ", in_url)
         url = in_url
 
         # Currently, each server url is just <IP>/<ROUTINE>, so just append
@@ -498,6 +498,6 @@ class SSE_Client():
         if(len(result_json['results'])>1 and type(result_json['results']) == list):
             server_out_time = result_json['results'].pop()
             server_in_time = result_json['results'].pop()
-            print("metainfo:", float(server_in_time)-client_out_time)  # n/w delay when sending
-            print("metainfo:", client_in_time-float(server_out_time))  # n/w delay when receiving
+            # print("client-to-server:", float(server_in_time)-client_out_time)  # n/w delay when sending
+            # print("server-to-client:", client_in_time-float(server_out_time))  # n/w delay when receiving
         return (result_json)
