@@ -128,6 +128,7 @@ void print_fd_list(int pid, fd_table_t *ft);
 // long check_inode_list(long user_inode, string *path);
 long check_inode_list(long user_inode, string *path, double* backtrack_ts);
 
+bool is_library_file(string path);
 inode_t find_inode(long inode, long eid);
 bool is_tainted_unit(process_table_t *pt, int clusterid);
 bool is_tainted_unit(process_table_t *pt, int tid, int unitid);

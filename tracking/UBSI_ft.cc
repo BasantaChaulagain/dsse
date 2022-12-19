@@ -34,19 +34,24 @@ void write_handler(int sysno, long eid, int tid, int fd, double ts, double* forw
 						fd, sysno, eid, tid, unitid, fd_el->num_path, fd_el->inode[fd_el->num_path-1], 
 						get_absolute_path(fd_el, fd_el->num_path-1).c_str(), fd_el->pathtype[fd_el->num_path-1].c_str());
 		if(fd_el->is_socket) { // it is socket
-				debugtaint("%s\n", fd_el->path[fd_el->num_path-1].c_str());
+			debugtaint("%s\n", fd_el->path[fd_el->num_path-1].c_str());
+			// if(strncmp(fd_el->path[fd_el->num_path-1].c_str(), "file:/var/run/nscd/socket", 25) != 0){
 				int t_socket = taint_socket(fd_el->path[fd_el->num_path-1]);
 				edge_proc_to_socket(tid, unitid, t_socket);
+				*flag = 1;
+				if (ts > *forward_ts)	*forward_ts = ts;
+			// }
 		} else {
+			if(is_library_file(get_absolute_path(fd_el, fd_el->num_path-1)) == 0){
 				taint_inode(fd_el->inode[fd_el->num_path-1], eid, get_absolute_path(fd_el, fd_el->num_path-1));
 				edge_proc_to_file(tid, unitid, fd_el->inode[fd_el->num_path-1], eid);
 				
 				timestamp_table_t *tt;
 				update_timestamp_table(tt, fd_el->inode[fd_el->num_path-1], ts, 0);
+				*flag = 1;
+				if (ts > *forward_ts)	*forward_ts = ts;
+			}
 		}
-		*flag = 1;
-
-		if (ts > *forward_ts)	*forward_ts = ts;
 		debugtrack("w-forward_ts: %lf\t", *forward_ts);
 }
 

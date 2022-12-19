@@ -414,6 +414,21 @@ bool taint_all_units_in_pid(int pid, string path)
 		return true;;
 }
 
+bool is_library_file(string path){
+	bool ret=false;
+
+	if(strncmp(path.c_str(),"/lib/",5) == 0) ret=true;
+	else if (strncmp(path.c_str(),"/proc/",6) == 0) ret=true;
+	else if (strncmp(path.c_str(),"/usr/lib/",9) == 0) ret=true;
+	// else if (strncmp(path.c_str(),"/etc/",5) == 0) ret=true;
+	// else if (strncmp(path.c_str(),"/dev/",5) == 0) ret=true;
+	// else if (strncmp(path.c_str(),"/run/",5) == 0) ret=true;
+	// else if (strncmp(path.c_str(),"/var/",5) == 0) ret=true;
+	// else if (strncmp(path.c_str(),"/sys/",5) == 0) ret=true;
+
+	return ret;
+}
+
 bool taint_inode(long inode, long eid, string path)
 {
 		if(inode <= 0) return false;

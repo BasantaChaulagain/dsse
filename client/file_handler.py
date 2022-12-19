@@ -20,7 +20,7 @@ sys.path.insert(0, parent_dir)
 from client.log_handler import LogHandler
 
 # Number of logs in each segment. (threshold value)
-NUM_OF_LOGS = 1000
+NUM_OF_LOGS = 7000
 
 class FileHandler():
     def __init__(self, file):
@@ -116,8 +116,10 @@ class FileHandler():
 
 
     def encode_logs(self):
+        ind=0
         for segment in self.segments:
-            print("encoding the segment: ", segment)
+            ind+=1
+            print("encoding the segment {}: {}".format(ind, segment))
             lookup_table = self.get_lookup_table()
             encoded_content = ""
             with open(segment, 'r') as seg:

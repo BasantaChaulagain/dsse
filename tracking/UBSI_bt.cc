@@ -76,19 +76,26 @@ void read_handler_(int sysno, long eid, int tid, int fd, int ret, double ts, dou
 						get_absolute_path(fd_el, fd_el->num_path-1).c_str(), fd_el->pathtype[fd_el->num_path-1].c_str(), fd_el->is_socket);
 		if(fd_el->is_socket) { // it is socket
 			debugtrack("is socket: %s\n", fd_el->path[fd_el->num_path-1].c_str());
+			// if(strncmp(fd_el->path[fd_el->num_path-1].c_str(), "file:/var/run/nscd/socket", 25) != 0){
 				int t_socket = taint_socket(fd_el->path[fd_el->num_path-1]);
 				edge_socket_to_proc(tid, unitid, t_socket);
+
+				*flag = 1;
+				if (ts < *backtrack_ts)	*backtrack_ts = ts;
+			// }
 		} else {
 				debugtrack("taint inode from read : %ld [%ld] - %ld\n", fd_el->inode[fd_el->num_path-1], fd_el->eid, eid);
-				taint_inode(fd_el->inode[fd_el->num_path-1], eid, get_absolute_path(fd_el, fd_el->num_path-1));
-				edge_file_to_proc(tid, unitid, fd_el->inode[fd_el->num_path-1], eid);
+				if(is_library_file(get_absolute_path(fd_el, fd_el->num_path-1)) == 0){
+					taint_inode(fd_el->inode[fd_el->num_path-1], eid, get_absolute_path(fd_el, fd_el->num_path-1));
+					edge_file_to_proc(tid, unitid, fd_el->inode[fd_el->num_path-1], eid);
 
-				timestamp_table_t *tt;
-				update_timestamp_table(tt, fd_el->inode[fd_el->num_path-1], ts, 1);
+					timestamp_table_t *tt;
+					update_timestamp_table(tt, fd_el->inode[fd_el->num_path-1], ts, 1);
+					
+					*flag = 1;
+					if (ts < *backtrack_ts)	*backtrack_ts = ts;
+				}
 		}
-		*flag = 1;
-
-		if (ts < *backtrack_ts)	*backtrack_ts = ts;
 		debugtrack("r-backtrack_ts: %lf\t", *backtrack_ts);
 		// printf("EXIT from read handler\n");
 }
@@ -122,16 +129,17 @@ void exec_handler_(int sysno, long eid, int tid, string cwd, string path, long i
 		if(is_tainted_pid(pid)) {
 				edge_file_to_proc(tid, unitid, inode, eid);
 				debugtrack("taint inode from exec : %ld [%ld]\n", inode, eid);
-				if(taint_inode(inode, eid, get_absolute_path(cwd,path))) { // only check the last path..
-						debugtaint("Taint File (tid %d, unitid %d): Execve (sysno %d, eid %ld), inode %ld, path:%s\n",
-										tid, unitid,
-										sysno, eid, inode, get_absolute_path(cwd,path).c_str());
+				if(is_library_file(get_absolute_path(cwd,path)) == 0){
+					if(taint_inode(inode, eid, get_absolute_path(cwd,path))) { // only check the last path..
+							debugtaint("Taint File (tid %d, unitid %d): Execve (sysno %d, eid %ld), inode %ld, path:%s\n",
+											tid, unitid,
+											sysno, eid, inode, get_absolute_path(cwd,path).c_str());
+					}
+					*flag = 1;
+					timestamp_table_t *tt;
+					update_timestamp_table(tt, inode, ts, 1);
+					if (ts < *backtrack_ts)	*backtrack_ts = ts;
 				}
-				*flag = 1;
-				timestamp_table_t *tt;
-				update_timestamp_table(tt, inode, ts, 1);
-
-				if (ts < *backtrack_ts)	*backtrack_ts = ts;
 				debugtrack("e-backtrack_ts: %lf\t", *backtrack_ts);
 		}
 		debugtrack("EXIT from exec handler\n");
@@ -248,8 +256,8 @@ void table_scan(int user_pid, long user_inode){
 			#ifdef GET_STATS
 				auto loop_start_ts = chrono::system_clock::now();
 				int total_log_lines = 0;
-				long double meta_data[4];
-				int meta_idx=0;
+				// long double meta_data[4];
+				// int meta_idx=0;
 				// auto c1_send_ts_ = chrono::system_clock::now().time_since_epoch().count();
 				// long double c1_send_ts = (long double)(c1_send_ts_)/1000000000;
 			#endif
@@ -276,13 +284,13 @@ void table_scan(int user_pid, long user_inode){
 					total_log_lines++;
 				#endif
 				if (strtol(line, NULL, 10) == 0){
-					#ifdef GET_STATS
-					if (strncmp(line, "metainfo:", 9) == 0){
-						char *ptr = strtok(line, ":");
-						ptr = strtok(NULL, ":");
-						meta_data[meta_idx++] = stold(ptr);
-					}
-					#endif
+					// #ifdef GET_STATS
+					// if (strncmp(line, "metainfo:", 9) == 0){
+					// 	char *ptr = strtok(line, ":");
+					// 	ptr = strtok(NULL, ":");
+					// 	meta_data[meta_idx++] = stold(ptr);
+					// }
+					// #endif
 					continue;
 				}
 				char temp[4096], *ptr;
@@ -364,7 +372,7 @@ void table_scan(int user_pid, long user_inode){
 						bt_syscall_handler_(temp, ts, &backtrack_ts, &flag);
 						// eid_list[eid_index++] = (int)eid;
 
-						// extract pid and inode from the logs.
+						// extract pid and inode from the logs. flag==1 indicates the log is used for tainting.
 						if (flag == 1){
 							char *ptr, list[2][12];
 							strcpy(temp, buf+k*max_log_len);
@@ -518,7 +526,7 @@ int main(int argc, char** argv)
 		if(user_inode > 0) {
 				string path;
 				long user_eid = check_inode_list(user_inode, &path, &backtrack_ts);
-				if(user_eid < 0) 
+				if(user_eid < 0)
 					taint_inode(user_inode, user_eid, path);
 				debugtaint("taint inode from initial : %ld [%ld]\n", user_inode, user_eid);
 				if (path[0] == ' ') path = path.substr(1);
