@@ -109,12 +109,13 @@ JMAP CALLS FOR SSE:
 def jmap_header():
     return JMAP_HEADER
 
-def pack_search(data, id_num):
+def pack_search(data, id_num, cluster_id):
     id_num = json.dumps(id_num)
-    return json.dumps([SEARCH_METHOD, {"query": data}, id_num])
+    cluster_id = json.dumps(cluster_id)
+    return json.dumps([SEARCH_METHOD, {"query": data}, id_num, cluster_id])
 
-def pack_update(data, id_num):
-    return json.dumps([UPDATE_METHOD, {"index": data}, id_num])
+def pack_update_index(data, id_num, cluster_id):
+    return json.dumps([UPDATE_METHOD, {"index": data}, id_num, cluster_id])
 
 def pack_add_file(data, id_num, filename):
     return json.dumps([ADD_FILE_METHOD, {"file": data.decode(), "filename": filename}, id_num])
@@ -128,10 +129,12 @@ def pack(METHOD, data, id_num, filename=None):
         return -1
 
     if METHOD == SEARCH:
-        message = pack_search(data, id_num)
+        cluster_id = filename
+        message = pack_search(data, id_num, cluster_id)
 
     elif METHOD == UPDATE:
-        message = pack_update(data, id_num)
+        cluster_id = filename
+        message = pack_update_index(data, id_num, cluster_id)
 
     elif METHOD == ADD_FILE:
         message = pack_add_file(data, id_num, filename)
@@ -149,12 +152,13 @@ def unpack_search(data):
 
     method = data[0]
     id_num = json.loads(data[2])
+    cluster_id = json.loads(data[3])
 
     # Limit scope to args (data[1])
     data = data[1]
     query = data['query']
 
-    return (method, query, id_num)
+    return (method, query, id_num, cluster_id)
 
 
 def unpack_update(data):
@@ -164,12 +168,13 @@ def unpack_update(data):
 
     method = data[0]
     id_num = data[2]
+    cluster_id = data[3]
 
     # Limit scope to args (data[1])
     data = data[1]
     new_index = data['index']
 
-    return (method, new_index, id_num)
+    return (method, new_index, id_num, cluster_id)
 
 def unpack_add_file(data):
 

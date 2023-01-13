@@ -37,18 +37,21 @@ variable_schema = { '0': r'\w+\(\d+\)',
 CSV_INPUT = 1
 
 class LogHandler:
-    def __init__(self, lookup_table):
+    def __init__(self, lookup_table, cluster_id):
         self.lt_string = ""             # id,lt_string,segment
         self.variable = []
         self.variable_ids = []
         self.log_type_id = ""
-        if len(lookup_table) != 0:
-            self.vdict = lookup_table[1]
-            self.ltdict = lookup_table[0]
-        else:
-            self.vdict = {}
-            self.ltdict = {}
+        self.cid = cluster_id
 
+        if cluster_id not in lookup_table[0].keys():
+            lookup_table[0][cluster_id] = {}
+        if cluster_id not in lookup_table[1].keys():
+            lookup_table[1][cluster_id] = {}
+
+        self.vdict = lookup_table[1]
+        self.ltdict = lookup_table[0]
+        
     def get_updated_lookup_table(self):
         return [self.ltdict, self.vdict]
 
@@ -80,7 +83,7 @@ class LogHandler:
         return None
     
     def get_log_type_id(self, ltstring):
-        for key, value in self.ltdict.items():
+        for key, value in self.ltdict[self.cid].items():
             if value[0] == ltstring:
                 return(key)
         return None
@@ -140,33 +143,33 @@ class LogHandler:
         variable_unique = list(set(self.variable))
         for var in variable_unique:
             schema_id = self.get_schema_id(var)
-            vdict_id = self.vdict.get(schema_id)
+            vdict_id = self.vdict[self.cid].get(schema_id)
             if not vdict_id:
-                self.vdict[schema_id] = {}
-                vdict_id = self.vdict.get(schema_id)
+                self.vdict[self.cid][schema_id] = {}
+                vdict_id = self.vdict[self.cid].get(schema_id)
             size_vdict_id = len(vdict_id)
             # if var not in any values in vdict_id, add to the dictionary, else update segment id and count.
             var_id = self.get_variable_id(var, vdict_id)
             if not var_id:
-                self.vdict[schema_id][str(size_vdict_id)] = [var, 1, [segment]]
+                self.vdict[self.cid][schema_id][str(size_vdict_id)] = [var, 1, [segment]]
             else:
-                segment_list = self.vdict[schema_id][var_id][2]
+                segment_list = self.vdict[self.cid][schema_id][var_id][2]
                 if segment not in segment_list:
                     segment_list.append(segment)
-                self.vdict[schema_id][var_id][1] += 1       # increment count by 1
+                self.vdict[self.cid][schema_id][var_id][1] += 1       # increment count by 1
 
         
     def write_to_ltdict(self, segment):
         logtype_id = self.get_log_type_id(self.lt_string)
         # if log_type_id is not present, add the ltstring, else just update the segment id and count.
         if not logtype_id:
-            size_ltdict = len(self.ltdict)
-            self.ltdict[str(size_ltdict)] = [self.lt_string, 1, [segment]]
+            size_ltdict = len(self.ltdict[self.cid])
+            self.ltdict[self.cid][str(size_ltdict)] = [self.lt_string, 1, [segment]]
         else:
-            segment_list = self.ltdict[logtype_id][2]
+            segment_list = self.ltdict[self.cid][logtype_id][2]
             if segment not in segment_list:
                 segment_list.append(segment)
-            self.ltdict[logtype_id][1] += 1              # increment count by 1
+            self.ltdict[self.cid][logtype_id][1] += 1              # increment count by 1
         
         
     def get_variable_ids(self):
@@ -176,7 +179,7 @@ class LogHandler:
         match = re.findall(pattern, self.lt_string)
         if match and len(match)==len(self.variable):
             for schema_id, variable in zip (match, self.variable):
-                var_dict = self.vdict[schema_id]
+                var_dict = self.vdict[self.cid][schema_id]
                 var_id = self.get_variable_id(variable, var_dict)
                 variable_ids = variable_ids + var_id +","
         variable_ids = variable_ids.rstrip(',')
@@ -189,7 +192,7 @@ class LogHandler:
         schema_ids = re.findall(pattern, self.lt_string)
         if schema_ids and len(schema_ids)==len(self.variable_ids):
             for schema_id, variable_id in zip(schema_ids, self.variable_ids):
-                var_dict = self.vdict[schema_id]
+                var_dict = self.vdict[self.cid][schema_id]
                 var = var_dict.get(variable_id)[0]
                 variables.append(var)
         return variables
@@ -224,7 +227,7 @@ class LogHandler:
             logtype_id = splitted[1]
             self.variable_ids = splitted[2].split(',')
             # look from here:
-            self.lt_string = self.ltdict.get(logtype_id)[0]
+            self.lt_string = self.ltdict[self.cid].get(logtype_id)[0]
             variables = self.get_variables_from_id()
             if (CSV_INPUT):
                 log = self.unparse_log_csv(ts, eid, variables)
@@ -241,17 +244,21 @@ class LogHandler:
 #     '''35559700; 1471074506.950(Sat Aug 13 03:48:26 2016); sendto(44); 78;  a[0]=0x5 a[1]=0x55dbbfbdc420 a[2]=0x4e a[3]=0x4000; 49011_1471074506.930; 0.000_0_0; 49011; 49005; sudo; /usr/bin/sudo; 0; 0; 1003; 5; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; '''
 # ]
 
+# lookup = [{}, {}]
+# for log in logs:
+#     l = LogHandler(lookup, "c4")
+#     e = l.encode(log, 'cdsfdf')
+#     print(lookup)
+#     print(e)
+
 # enc_logs = [
-#             '''1471074506.950:35559695,0,0,5,0,0,0,2,4,0,0,0,0,3,1,1,2,1,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0'''
+#             '''1471074506.950:35559695,0,0,5,0,0,0,4,1,1,0,2,2,0,3,0,2,1,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0'''
 # ]
 
-# '''1471074506.946:35559676,0,2,1,1,4,0,3,0,0,3,1,1,4,5,2,1,1,1,1,1,1,1,1,0,2,0,1,1'''
-
-
-# lookup = [{'0': ['\x110 \x119 \x113 \x115 \x116 \x119 \x119 \x118 \x117 \x119 \x119 \x119 \x119 \x118 \x118 \x117 \x119 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 ', 1, ['test0']]},
-#         {'12': {'0': ['', 1, ['test0']]}, '0': {'0': ['read(0)', 1, ['test0']]}, '8': {'0': ['sudo', 1, ['test0']], '1': ['file', 1, ['test0']], '2': ['login.defs', 1, ['test0']]}, '9': {'0': ['0', 1, ['test0']], '1': ['4', 1, ['test0']], '2': ['49011', 1, ['test0']], '3': ['1003', 1, ['test0']], '4': ['49005', 1, ['test0']], '5': ['4096', 1, ['test0']], '6': ['131246', 1, ['test0']]}, '7': {'0': ['/usr/bin/sudo', 1, ['test0']], '1': ['/etc/login.defs', 1, ['test0']]}, '5': {'0': ['49011_1471074506.930', 1, ['test0']]}, '6': {'0': ['0.000_0_0', 1, ['test0']]}, '3': {'0': ['a[0]=0x4 a[1]=0x7fc46876a000 a[2]=0x1000', 1, ['test0']]}}]
+# lookup = [{'c4': {'0': ['\x110 \x119 \x113 \x115 \x116 \x119 \x119 \x118 \x117 \x119 \x119 \x119 \x119 \x118 \x118 \x117 \x119 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 \x1112 ', 1, ['cdsfdf']]}}, 
+#             {'c4': {'7': {'0': ['/usr/bin/sudo', 1, ['cdsfdf']], '1': ['/etc/login.defs', 1, ['cdsfdf']]}, '9': {'0': ['1003', 1, ['cdsfdf']], '1': ['49005', 1, ['cdsfdf']], '2': ['0', 1, ['cdsfdf']], '3': ['4', 1, ['cdsfdf']], '4': ['49011', 1, ['cdsfdf']], '5': ['4096', 1, ['cdsfdf']], '6': ['131246', 1, ['cdsfdf']]}, '12': {'0': ['', 1, ['cdsfdf']]}, '8': {'0': ['file', 1, ['cdsfdf']], '1': ['sudo', 1, ['cdsfdf']], '2': ['login.defs', 1, ['cdsfdf']]}, '3': {'0': ['a[0]=0x4 a[1]=0x7fc46876a000 a[2]=0x1000', 1, ['cdsfdf']]}, '0': {'0': ['read(0)', 1, ['cdsfdf']]}, '5': {'0': ['49011_1471074506.930', 1, ['cdsfdf']]}, '6': {'0': ['0.000_0_0', 1, ['cdsfdf']]}}}]
 
 # for log in enc_logs:
-#     l = LogHandler(lookup)
+#     l = LogHandler(lookup, "c4")
 #     e = l.decode(log)
 #     print(e)

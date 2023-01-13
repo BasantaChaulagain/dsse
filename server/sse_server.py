@@ -108,13 +108,13 @@ def update():
         return jsonify(results='Error: not json')
 
     # Unpack 'arguments'
-    (method, new_index, id_num) = jmap.unpack(UPDATE, request.get_json())
+    (method, new_index, id_num, cluster_id) = jmap.unpack(UPDATE, request.get_json())
 
     if method != UPDATE_METHOD:
         return jsonify(results='Error: Wrong Method for url')
 
     # Open local ecypted index and get length
-    index = dbm.open("indexes/"+str(id_num)+"_index", "c")
+    index = dbm.open("indexes/"+str(cluster_id)+"_index_"+str(id_num), "c")
     index_len = get_index_len(index)
 
     # Iterate through update list, replacing existing entries in local
@@ -156,7 +156,7 @@ def search():
     if not request.json:
         return jsonify(results='Error: not json')
 
-    (method, query, id_num) = jmap.unpack(SEARCH, request.get_json())
+    (method, query, id_num, cluster_id) = jmap.unpack(SEARCH, request.get_json())
 
     if method != SEARCH_METHOD:
         return jsonify(results='Error: Wrong Method for url')
@@ -169,8 +169,9 @@ def search():
     M = []
     cnt=0
     for i in query:
-        index = dbm.open("indexes/"+id_num[cnt]+"_index", "r")
-        print("searching in file: ", "indexes/"+id_num[cnt]+"_index")
+        print(cluster_id, id_num)
+        index = dbm.open("indexes/"+cluster_id[cnt]+"_index_"+id_num[0], "r")
+        print("searching in file: ", "indexes/"+cluster_id[cnt]+"_index_"+id_num[0])
         count = get_index_len(index)
         cnt += 1
 

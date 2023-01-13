@@ -20,7 +20,10 @@ sys.path.insert(0, parent_dir)
 from client.log_handler import LogHandler
 
 # Number of logs in each segment. (threshold value)
-NUM_OF_LOGS = 7000
+NUM_OF_LOGS = 3000
+
+# Number of segments in each cluster.
+NUM_OF_SEGMENTS = 35
 
 class FileHandler():
     def __init__(self, file):
@@ -116,16 +119,19 @@ class FileHandler():
 
 
     def encode_logs(self):
-        ind=0
+        segment_count = 0
+        last_cluster_id = 0
         for segment in self.segments:
-            ind+=1
-            print("encoding the segment {}: {}".format(ind, segment))
-            lookup_table = self.get_lookup_table()
+            cluster_id = last_cluster_id + int(segment_count/NUM_OF_SEGMENTS)
+            segment_count+=1
+            print("encoding the segment {}: {}".format(segment_count, segment))
+
+            lookup_table = self.get_lookup_table()          # [{},{}] initially
             encoded_content = ""
             with open(segment, 'r') as seg:
                 for log in seg:
                     segment_id=segment.split('/')[1]        # get filename only
-                    l = LogHandler(lookup_table)
+                    l = LogHandler(lookup_table, "c"+str(cluster_id))
                     encoded_message = l.encode(log, segment_id)
                     encoded_content = encoded_content + "\n" + encoded_message
                     lookup_table = l.get_updated_lookup_table()
@@ -134,19 +140,20 @@ class FileHandler():
             self.write_to_file(encoded_content, segment)
             # self.insert_to_metadata_db(segment)
 
+        # write last_cluster_id to conf file after processing all the segments
+        last_cluster_id = cluster_id + 1
+
         
-    def decode_logs(self):
-        for segment in self.segments:
-            with open(segment, 'r') as seg:
-                for line in seg:
-                    lookup_table = self.get_lookup_table()
-                    l = LogHandler(lookup_table)
-                    log = l.decode(line.rstrip('\n'))
-                    self.write_to_file(log, segment+'_')
+    # def decode_logs(self):
+    #     for segment in self.segments:
+    #         with open(segment, 'r') as seg:
+    #             for line in seg:
+    #                 lookup_table = self.get_lookup_table()
+    #                 l = LogHandler(lookup_table)
+    #                 log = l.decode(line.rstrip('\n'))
+    #                 self.write_to_file(log, segment+'_')
 
 
-# for a single file:
-# f = FileHandler("orig/log2.csv")
-# f.split_file()
-# f.encode_logs()
-# # f.decode_logs()
+# file = FileHandler("orig/log2.csv")
+# file.split_file()
+# file.encode_logs()

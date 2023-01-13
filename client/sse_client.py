@@ -51,6 +51,7 @@ import json
 import re
 import inspect
 import sys
+import shutil
 from time import time
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -86,6 +87,7 @@ def get_schema_id(var):
             return(str(key))
     return None
 
+
 def get_lookup_table():
     try:
         with open('ltdict.json', 'r') as f:
@@ -96,6 +98,21 @@ def get_lookup_table():
     except:
         lookup_table = [{},{}]
     return lookup_table
+
+
+def get_cluster_id(word, schema_id):
+    cluster_ids = []
+    try:
+        with open('vdict.json', 'r') as f:
+            vdict = json.load(f)
+
+        for key, value in vdict.items():
+            for each in value.get(schema_id).values():
+                if each[0] == word:
+                    cluster_ids.append(key)
+        return cluster_ids
+    except:
+        return cluster_ids
 
 
 ########
@@ -260,7 +277,8 @@ class SSE_Client():
         (indexes, update_idx_ts) = self.update_index(lookup_table)
 
         for index in indexes:
-            message = jmap.pack(UPDATE, index[0], index[1])
+            # ((index, vdict_id. cluster_id))
+            message = jmap.pack(UPDATE, index[0], index[1], index[2])
             # print(message)
             r = self.send(UPDATE, message)
             if(type(r) != dict):
@@ -292,6 +310,9 @@ class SSE_Client():
             print("Results of UPDATE/ADD FILE: " + results)
 
             outfile.close()
+
+        for f in os.listdir("tmp/"):
+            os.remove(os.path.join("tmp/", f))
         
         encrypt_ts = datetime.now()
         
@@ -302,39 +323,42 @@ class SSE_Client():
 
 
     def update_index(self, lookup_table):
-
         vdict = lookup_table[1]
-        for key, value in vdict.items():  
-            index = dbm.open("indexes/"+key+"_index", "c")
-            index_IDs = dbm.open("indexes/"+key+"_index_IDs", "c")
+        for k, v in vdict.items():
+            cluster_id = k
+            for key, value in v.items():
+                index = dbm.open("indexes/"+cluster_id+"_index_"+key, "c")
+                index_IDs = dbm.open("indexes/"+cluster_id+"_index_IDs_"+key, "c")
 
-            vdict_items = list(value.values())
-            for item in vdict_items:
-                # sample item: ['DAEMON_START', 1, ['bYvf8pWtahZSNwiVMs7M8g']]
-                if item[0] not in index.keys():
-                    index[item[0]] = str(item[1])
-                else:
-                    if item[1] != int(index.get(item[0])):
+                vdict_items = list(value.values())
+                for item in vdict_items:
+                    # sample item: ['DAEMON_START', 1, ['bYvf8pWtahZSNwiVMs7M8g']]
+                    if item[0] not in index.keys():
                         index[item[0]] = str(item[1])
+                    else:
+                        if item[1] != int(index.get(item[0])):
+                            index[item[0]] = str(item[1])
 
-                if item[0] not in index_IDs.keys():
-                    index_IDs[item[0]] = DELIMETER.join(item[2])
-                else:
-                    if int(item[1]) != index.get(item[0]):
-                        index[item[0]] = DELIMETER.join(item[2])
-            
-            index.close()
-            index_IDs.close()
+                    if item[0] not in index_IDs.keys():
+                        index_IDs[item[0]] = DELIMETER.join(item[2])
+                    else:
+                        if int(item[1]) != index.get(item[0]):
+                            index[item[0]] = DELIMETER.join(item[2])
+                
+                index.close()
+                index_IDs.close()
             
         update_idx_ts = datetime.now()
 
         indexes = []
-        vdict_keys = vdict.keys()
-        for i in vdict_keys:
-            ind = "indexes/"+str(i)+"_index"
-            ind_id = "indexes/"+str(i)+"_index_IDs"
-            index = self.encryptIndex(ind, ind_id)
-            indexes.append((index, i))
+        for k,v in vdict.items():
+            cluster_id = k
+            vdict_keys = v.keys()
+            for i in vdict_keys:
+                ind = "indexes/"+cluster_id+"_index_"+str(i)
+                ind_id = "indexes/"+cluster_id+"_index_IDs_"+str(i)
+                index = self.encryptIndex(ind, ind_id)
+                indexes.append((index, i, cluster_id))
             
         return (indexes, update_idx_ts)
 
@@ -378,20 +402,19 @@ class SSE_Client():
 
     def search(self, query):
         return_result = ""
-        query = query.split()
-        print("query: ", query)
         return_result += "metainfo: %s\n" % time()
 
         # Generate list of querys (may be just 1)
         L = []
         ids = []
-        for word in query:
-            word = word.lower()
-            
-            schema_id = get_schema_id(word)
-            ids.append(schema_id)
-            index_file = "indexes/"+schema_id+"_index"
-            
+        word = query.lower()
+        
+        schema_id = get_schema_id(word)
+        ids.append(schema_id)
+        cluster_ids = get_cluster_id(word, schema_id)
+        
+        for cid in cluster_ids:
+            index_file = "indexes/"+cid+"_index_"+schema_id
             if (os.path.exists(index_file)):
                 index = dbm.open(index_file, "r")
             else:
@@ -425,7 +448,7 @@ class SSE_Client():
                 c = str(int(c))
                 L.append((k1, k2, c))
 
-        message = jmap.pack(SEARCH, L, ids)
+        message = jmap.pack(SEARCH, L, ids, cluster_ids)
 
         # Send data and unpack results.
         ret_data = self.send(SEARCH, message)
@@ -443,12 +466,13 @@ class SSE_Client():
             decrypted = self.decryptSegment(i.encode('latin1'), )
             lookup_table = get_lookup_table()
             decrypted_ = decrypted.split('\n')[:-1]
-            l = LogHandler(lookup_table)
-            for each in decrypted_:
-                decoded = l.decode(each)
-                for word in query:
-                    if re.search(r'\b{}\b'.format(word), decoded):
-                        decoded_message += (decoded+'\n')
+            for cid in cluster_ids:
+                l = LogHandler(lookup_table, cid)
+                for each in decrypted_:
+                    decoded = l.decode(each)
+                    for word in query:
+                        if re.search(r'\b{}\b'.format(word), decoded):
+                            decoded_message += (decoded+'\n')
         
         return_result += "metainfo: %s\n" % time()
         return_result += "%s" % decoded_message
