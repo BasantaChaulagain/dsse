@@ -169,7 +169,7 @@ def search():
     M = []
     cnt=0
     for i in query:
-        print(cluster_id, id_num)
+        # print(i, cluster_id, id_num)
         index = dbm.open("indexes/"+cluster_id[cnt]+"_index_"+id_num[0], "r")
         print("searching in file: ", "indexes/"+cluster_id[cnt]+"_index_"+id_num[0])
         count = get_index_len(index)
@@ -187,7 +187,7 @@ def search():
                 c = i[2].encode('latin1', 'ignore')
         except:
             pass
-
+        
         # D [] is a list of mail IDs found for a term.
         # Its leftover 'legacy' code. Used to be you had to iterate through
         # entire encrypted index for repeated use of a term in different

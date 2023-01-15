@@ -456,7 +456,7 @@ class SSE_Client():
             ret_data = ret_data.json()
         results = ret_data['results']
         return_result += "Results of SEARCH:\n"
-
+        
         if results == NO_RESULTS:
             return_result += "%s\n" % results
             return return_result
@@ -470,9 +470,8 @@ class SSE_Client():
                 l = LogHandler(lookup_table, cid)
                 for each in decrypted_:
                     decoded = l.decode(each)
-                    for word in query:
-                        if re.search(r'\b{}\b'.format(word), decoded):
-                            decoded_message += (decoded+'\n')
+                    if re.search(r'\b{}\b'.format(word), decoded):
+                        decoded_message += (decoded+'\n')
         
         return_result += "metainfo: %s\n" % time()
         return_result += "%s" % decoded_message
