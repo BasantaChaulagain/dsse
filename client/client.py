@@ -30,9 +30,9 @@ DEBUG = 1
 CSV_INPUT = 1
 # CSV_INPUT = config["GLOBAL"]["CSV_INPUT"]
 
-def sse_search(keyword):
+def sse_search(keyword, base_ts, type):
     sse = SSE_Client()
-    return(sse.search(keyword))
+    return(sse.search(keyword, base_ts, type))
 
 def main():
     # Set-up a command-line argument parser
@@ -68,7 +68,7 @@ def main():
         if (DEBUG):
            print(("Searching remote index for word(s): '%s'" 
                   % args.search[0]))
-        res = sse.search(args.search[0])
+        res = sse.search(args.search[0], args.search[1], args.search[2])
         print(res)
 
     elif args.inspect_index:

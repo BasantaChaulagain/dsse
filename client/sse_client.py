@@ -63,6 +63,7 @@ from client.log_handler import variable_schema, LogHandler
 
 DEBUG = 1
 SEARCH = "search"
+SEARCH_DOC = "search_doc"
 UPDATE = "update"
 ADD = "add"
 
@@ -148,7 +149,7 @@ class SSE_Client():
 
         # Stemming tool (cuts words to their roots/stems)
         self.stemmer = PorterStemmer()
-        self.ensure_metadata_db()
+        self.db = self.ensure_metadata_db()
 
     def initKeys(self):
         # initialize keys k & kPrime
@@ -184,20 +185,12 @@ class SSE_Client():
 
     def ensure_metadata_db(self):
         db = sqlite3.connect('metadata')
+        db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, ts_start real, ts_end real)''')
         if db == None:
             print("Error while opening database")
-        else:
-            db.execute('CREATE TABLE IF NOT EXISTS file_segment (file_id TEXT, segment_id TEXT, ts_start REAL, ts_end REAL)')
-
-
-    def ensure_metadata_db(self):
-        db = sqlite3.connect('metadata')
-        if db == None:
-            print("Error while opening database")
-        else:
-            db.execute('CREATE TABLE IF NOT EXISTS file_segment (file_id TEXT, segment_id TEXT, ts_start REAL, ts_end REAL)')
-
-
+        return db
+        
+        
     def encryptSegment(self, infile, outfile):
 
         # read in infile (opened file descriptor)
@@ -212,6 +205,7 @@ class SSE_Client():
 
         # write encrypted data to new file
         outfile.write((self.iv + self.cipher.encrypt(buf.encode('latin1'))))
+
 
     def decryptSegment(self, buf, outfile=None):
         # Just pass in input file buf and fd in which to write out
@@ -319,46 +313,47 @@ class SSE_Client():
         print("\nStats (time required):")
         print("Encode segments: {}\nUpdate index: {}\nEncrypt index: {}\nEncrypt segments: {}\n"
               .format(encode_ts-begin_ts, update_idx_ts-encode_ts, encrypt_idx_ts-update_idx_ts, encrypt_ts-encrypt_idx_ts))
-        print("Encoding: {}\nEncrypting: {}\nTotal:{}".format(update_idx_ts-begin_ts, encrypt_ts-update_idx_ts, encrypt_ts-begin_ts))
+        print("Encoding: {}\nEncrypting: {}\nTotal: {}".format(update_idx_ts-begin_ts, encrypt_ts-update_idx_ts, encrypt_ts-begin_ts))
 
 
     def update_index(self, lookup_table):
         vdict = lookup_table[1]
         for k, v in vdict.items():
             cluster_id = k
-            for key, value in v.items():
-                index = dbm.open("indexes/"+cluster_id+"_index_"+key, "c")
-                index_IDs = dbm.open("indexes/"+cluster_id+"_index_IDs_"+key, "c")
+            key = "9"   # variable schema for integer
+            integer_dict = v.get(key)
+            index = dbm.open("indexes/"+cluster_id+"_index_"+key, "c")
+            index_IDs = dbm.open("indexes/"+cluster_id+"_index_IDs_"+key, "c")
 
-                vdict_items = list(value.values())
-                for item in vdict_items:
-                    # sample item: ['DAEMON_START', 1, ['bYvf8pWtahZSNwiVMs7M8g']]
-                    if item[0] not in index.keys():
+            vdict_items = list(integer_dict.values())
+            for item in vdict_items:
+                # sample item: ['DAEMON_START', 2, ['bYvf8pWtahZSNwiVMs7M8g']]
+                if item[0] not in index.keys():
+                    index[item[0]] = str(item[1])
+                else:
+                    if item[1] != int(index.get(item[0])):
                         index[item[0]] = str(item[1])
-                    else:
-                        if item[1] != int(index.get(item[0])):
-                            index[item[0]] = str(item[1])
 
-                    if item[0] not in index_IDs.keys():
-                        index_IDs[item[0]] = DELIMETER.join(item[2])
-                    else:
-                        if int(item[1]) != index.get(item[0]):
-                            index[item[0]] = DELIMETER.join(item[2])
-                
-                index.close()
-                index_IDs.close()
+                if item[0] not in index_IDs.keys():
+                    index_IDs[item[0]] = DELIMETER.join(item[2])
+                else:
+                    if int(item[1]) != index.get(item[0]):
+                        index[item[0]] = DELIMETER.join(item[2])
+            
+            index.close()
+            index_IDs.close()
             
         update_idx_ts = datetime.now()
 
         indexes = []
         for k,v in vdict.items():
             cluster_id = k
-            vdict_keys = v.keys()
-            for i in vdict_keys:
-                ind = "indexes/"+cluster_id+"_index_"+str(i)
-                ind_id = "indexes/"+cluster_id+"_index_IDs_"+str(i)
-                index = self.encryptIndex(ind, ind_id)
-                indexes.append((index, i, cluster_id))
+            key = "9"   # variable schema for integer
+
+            ind = "indexes/"+cluster_id+"_index_"+key
+            ind_id = "indexes/"+cluster_id+"_index_IDs_"+key
+            index = self.encryptIndex(ind, ind_id)
+            indexes.append((index, int(key), cluster_id))
             
         return (indexes, update_idx_ts)
 
@@ -400,7 +395,7 @@ class SSE_Client():
         return L
 
 
-    def search(self, query):
+    def search(self, query, base_ts=0, search_type=''):
         return_result = ""
         return_result += "metainfo: %s\n" % time()
 
@@ -434,7 +429,6 @@ class SSE_Client():
             # correct encrypted entry for the term on the server, and k2
             # will be used to decrypt the mail ID(s)
             k1 = self.PRF(self.k, ("1" + word))
-            k2 = self.PRF(self.k, ("2" + word))
 
             # If no 'c' (term not in local index so likely not on server),
             # just send k1 and k2. Will take a long time to return false
@@ -442,16 +436,60 @@ class SSE_Client():
             # in local index?  Can we rely on the local index always being
             # up to date?
             if not c:
-                L.append((k1, k2))
+                L.append((k1))
             # Otherwise send along 'c'. 
             else:
                 c = str(int(c))
-                L.append((k1, k2, c))
-
+                L.append((k1, c))
+            
+        k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore')    
+        
         message = jmap.pack(SEARCH, L, ids, cluster_ids)
-
         # Send data and unpack results.
         ret_data = self.send(SEARCH, message)
+
+        segments_e = ret_data['results']
+        segments_d = []
+        
+        for each in segments_e:
+            m_str = ''
+            m = self.dec(k2, each).decode()
+            for x in m:
+                if x in string.printable:
+                    m_str += x
+            for msg in m_str.split(DELIMETER):
+                if msg not in segments_d:
+                    segments_d.append(str(msg))
+                
+        cur = self.db.cursor()
+        if search_type == 'f':
+            cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_start<=? and ts_end>=?''', (base_ts, base_ts))
+            base_segment = [list[0] for list in cur.fetchall()]
+            if len(base_segment) >= 1:
+                base_segment = base_segment[0]
+                cur.execute('''SELECT ts_start FROM SEGMENT_INFO WHERE segment_id=?''', (base_segment, ))
+                base_ts = cur.fetchone()[0]
+            cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_start>=?''', (base_ts, ))
+            relevant_segments = [list[0] for list in cur.fetchall()]
+        
+        elif search_type == 'b':
+            cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_start<=? and ts_end>=?''', (base_ts, base_ts))
+            base_segment = [list[0] for list in cur.fetchall()]
+            if len(base_segment) >= 1:
+                base_segment = base_segment[-1]
+                cur.execute('''SELECT ts_end FROM SEGMENT_INFO WHERE segment_id=?''', (base_segment, ))
+                base_ts = cur.fetchone()[0]
+            cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_end<=?''', (base_ts, ))
+            relevant_segments = [list[0] for list in cur.fetchall()]
+        
+        return_segments = []
+        for each in segments_d:
+            if each in relevant_segments:
+                return_segments.append(each)
+                
+        message = jmap.pack(SEARCH_DOC, return_segments)
+        ret_data = self.send(SEARCH_DOC, message)
+        
         if(type(ret_data) != dict):
             ret_data = ret_data.json()
         results = ret_data['results']
@@ -485,6 +523,14 @@ class SSE_Client():
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
 
+    # Decrypt doc ID using k2
+    def dec(self, k2, d):
+        d_bin = binascii.unhexlify(d) 
+        iv = d_bin[:16]
+        cipher = AES.new(k2[:16], AES.MODE_CBC, iv)
+        doc = cipher.decrypt(d_bin[16:])
+
+        return doc
 
     def send(self, routine, data, filename = None, in_url = DEFAULT_URL):
         # print("sending to ", in_url)
@@ -495,6 +541,9 @@ class SSE_Client():
 
         if routine == SEARCH:
             url = url + SEARCH
+            headers = jmap.jmap_header()
+        elif routine == SEARCH_DOC:
+            url = url + SEARCH_DOC
             headers = jmap.jmap_header()
         elif routine == UPDATE:
             url = url + UPDATE
@@ -518,7 +567,7 @@ class SSE_Client():
         result = requests.post(url, data, headers = headers)
         client_in_time = time()
         result_json = result.json()
-        if(len(result_json['results'])>1 and type(result_json['results']) == list):
+        if(len(result_json['results'])>1 and type(result_json['results']) == list and type(result_json['results'][-1]) == float):
             server_out_time = result_json['results'].pop()
             server_in_time = result_json['results'].pop()
             # print("client-to-server:", float(server_in_time)-client_out_time)  # n/w delay when sending

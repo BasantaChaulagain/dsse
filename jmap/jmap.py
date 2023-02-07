@@ -36,9 +36,11 @@ import json
 
 FILE = "[JMAP] "
 SEARCH = "search"
+SEARCH_DOC = "search_doc"
 UPDATE = "update"
 ADD_FILE = "add"
-SEARCH_METHOD = "getEncryptedMessages"
+SEARCH_METHOD = "getDecryptedSegments"
+SEARCH_DOC_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
 ADD_FILE_METHOD = "putEncryptedMessage"
 
@@ -109,6 +111,9 @@ JMAP CALLS FOR SSE:
 def jmap_header():
     return JMAP_HEADER
 
+def pack_search_doc(data):
+    return json.dumps([SEARCH_DOC_METHOD, {"query": data}])
+    
 def pack_search(data, id_num, cluster_id):
     id_num = json.dumps(id_num)
     cluster_id = json.dumps(cluster_id)
@@ -120,7 +125,7 @@ def pack_update_index(data, id_num, cluster_id):
 def pack_add_file(data, id_num, filename):
     return json.dumps([ADD_FILE_METHOD, {"file": data.decode(), "filename": filename}, id_num])
 
-def pack(METHOD, data, id_num, filename=None):
+def pack(METHOD, data, id_num=None, filename=None):
     FUNC = "jmap.pack"
     message = None
 
@@ -131,6 +136,9 @@ def pack(METHOD, data, id_num, filename=None):
     if METHOD == SEARCH:
         cluster_id = filename
         message = pack_search(data, id_num, cluster_id)
+    
+    elif METHOD == SEARCH_DOC:
+        message = pack_search_doc(data)
 
     elif METHOD == UPDATE:
         cluster_id = filename
@@ -160,6 +168,12 @@ def unpack_search(data):
 
     return (method, query, id_num, cluster_id)
 
+def unpack_search_doc(data):
+    if data[0] != SEARCH_DOC_METHOD:
+        return -1
+    method = data[0]
+    query = data[1]['query']
+    return (method, query)
 
 def unpack_update(data):
     
@@ -201,6 +215,8 @@ def unpack(METHOD, data):
   
     if METHOD == SEARCH:
         return unpack_search(data)
+    elif METHOD == SEARCH_DOC:
+        return unpack_search_doc(data)
     elif METHOD == UPDATE:
         return unpack_update(data)
     elif METHOD == ADD_FILE: 

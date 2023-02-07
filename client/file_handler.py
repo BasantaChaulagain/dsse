@@ -13,25 +13,27 @@ import os
 import sqlite3
 import sys
 import shortuuid
+from configparser import ConfigParser
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 from client.log_handler import LogHandler
 
-# Number of logs in each segment. (threshold value)
-NUM_OF_LOGS = 3000
+config_ = ConfigParser()
+config_.read("config.ini")
 
-# Number of segments in each cluster.
-NUM_OF_SEGMENTS = 35
+NUM_OF_LOGS = int(config_["CONF"]["num_of_logs"])
+NUM_OF_SEGMENTS = int(config_["CONF"]["num_of_segments"])
 
 class FileHandler():
     def __init__(self, file):
         self.file_to_handle = file
         self.segments = []
-        # self.db = sqlite3.connect('metadata')
-        # if self.db == None:
-        #     print("Error while opening database")
+        self.db = sqlite3.connect('metadata')
+        self.db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, ts_start real, ts_end real)''')
+        if self.db == None:
+            print("Error while opening database")
 
 
     def get_new_segment(self):
@@ -61,6 +63,8 @@ class FileHandler():
 
     def get_timestamps_from_segment(self, segment):
         with open(segment, 'rb') as f:
+            if(f.readline() == b'\n'):
+                pass
             first_line = f.readline().decode()
             try:  # catch OSError in case of a one line file 
                 f.seek(-2, os.SEEK_END)
@@ -74,11 +78,11 @@ class FileHandler():
         return (ts_start, ts_end)
 
 
-    def insert_to_metadata_db(self, segment):
+    def insert_to_metadata_db(self, segment, cluster_id):
         file_id = self.file_to_handle.split('/')[1]
         ts_start, ts_end = self.get_timestamps_from_segment(segment)
         segment = segment.split('/')[1]
-        self.db.execute('''INSERT INTO file_segment (file_id, segment_id, ts_start, ts_end) VALUES (?, ?, ?, ?)''',(file_id, segment, ts_start, ts_end))
+        self.db.execute('''INSERT INTO SEGMENT_INFO (file_id, segment_id, cluster_id, ts_start, ts_end) VALUES (?, ?, ?, ?, ?)''',(file_id, segment, cluster_id, ts_start, ts_end))
         self.db.commit()
 
 
@@ -120,7 +124,7 @@ class FileHandler():
 
     def encode_logs(self):
         segment_count = 0
-        last_cluster_id = 0
+        last_cluster_id = int(config_["CONF"]["last_cluster_id"])
         for segment in self.segments:
             cluster_id = last_cluster_id + int(segment_count/NUM_OF_SEGMENTS)
             segment_count+=1
@@ -138,11 +142,13 @@ class FileHandler():
                 
             self.set_lookup_table(lookup_table)
             self.write_to_file(encoded_content, segment)
-            # self.insert_to_metadata_db(segment)
+            self.insert_to_metadata_db(segment, "c"+str(cluster_id))
 
         # write last_cluster_id to conf file after processing all the segments
         last_cluster_id = cluster_id + 1
-
+        config_["CONF"]["last_cluster_id"] = str(last_cluster_id)
+        with open('config.ini', 'w') as conf:
+            config_.write(conf)
         
     # def decode_logs(self):
     #     for segment in self.segments:

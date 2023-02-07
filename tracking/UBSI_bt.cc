@@ -13,7 +13,7 @@
 
 using namespace std;
 
-void write_handler_(int sysno, long eid, int tid, int fd, string exe, double ts, double* backtrack_ts, int* flag)
+void write_handler_(int sysno, long eid, int tid, int fd, string exe, double ts, double* backtrack_ts, int* ret_pid, long* ret_inode, int* flag)
 {
 	debugtrack("In write handler\n");
 		int unitid = -1;
@@ -38,6 +38,8 @@ void write_handler_(int sysno, long eid, int tid, int fd, string exe, double ts,
 										get_absolute_path(fd_el, fd_el->num_path-1).c_str(), 
 										fd_el->pathtype[fd_el->num_path-1].c_str());
 				}
+				*ret_pid = tid;
+				*ret_inode = fd_el->inode[fd_el->num_path-1];
 				*flag = 1;
 				timestamp_table_t *tt;
 				update_timestamp_table(tt, tid, ts, 1);
@@ -48,7 +50,7 @@ void write_handler_(int sysno, long eid, int tid, int fd, string exe, double ts,
 		// printf("EXIT from write handler\n");
 }
 
-void read_handler_(int sysno, long eid, int tid, int fd, int ret, double ts, double* backtrack_ts, int* flag){
+void read_handler_(int sysno, long eid, int tid, int fd, int ret, double ts, double* backtrack_ts, int* ret_pid, long* ret_inode, int* flag){
 		debugtrack("In read handler\n");
 		if (sysno == 43)	fd = ret; 	//SYS_accept
 		int unitid = -1;
@@ -81,6 +83,7 @@ void read_handler_(int sysno, long eid, int tid, int fd, int ret, double ts, dou
 				edge_socket_to_proc(tid, unitid, t_socket);
 
 				*flag = 1;
+				*ret_pid = tid;
 				if (ts < *backtrack_ts)	*backtrack_ts = ts;
 			// }
 		} else {
@@ -93,6 +96,8 @@ void read_handler_(int sysno, long eid, int tid, int fd, int ret, double ts, dou
 					update_timestamp_table(tt, fd_el->inode[fd_el->num_path-1], ts, 1);
 					
 					*flag = 1;
+					*ret_pid = tid;
+					*ret_inode = fd_el->inode[fd_el->num_path-1];
 					if (ts < *backtrack_ts)	*backtrack_ts = ts;
 				}
 		}
@@ -100,7 +105,7 @@ void read_handler_(int sysno, long eid, int tid, int fd, int ret, double ts, dou
 		// printf("EXIT from read handler\n");
 }
 
-void fork_handler_(int sysno, long eid, int tid, int a1, int ret, string exe, double ts, double* backtrack_ts, int* flag){
+void fork_handler_(int sysno, long eid, int tid, int a1, int ret, string exe, double ts, double* backtrack_ts, int* ret_pid, long* ret_inode, int* flag){
 		debugtrack("In fork handler\n");
 		int unitid = -1;
 		if(a1 > 0) return;
@@ -111,6 +116,7 @@ void fork_handler_(int sysno, long eid, int tid, int a1, int ret, string exe, do
 						debugtrack("Taint Process: fork (sysno %d) pid %d, unitid %d, exit %d, exe %s\n", sysno, tid, unitid, ret, exe.c_str());
 				}
 				*flag = 1;
+				*ret_pid = tid;
 				timestamp_table_t *tt;
 				update_timestamp_table(tt, tid, ts, 1);
 
@@ -120,8 +126,8 @@ void fork_handler_(int sysno, long eid, int tid, int a1, int ret, string exe, do
 		debugtrack("EXIT from fork handler\n");
 }
 
-void exec_handler_(int sysno, long eid, int tid, string cwd, string path, long inode, double ts, double* backtrack_ts, int* flag){
-		debugtrack("In exec handler\n");
+void exec_handler_(int sysno, long eid, int tid, string cwd, string path, long inode, double ts, double* backtrack_ts, int* ret_pid, long* ret_inode, int* flag){
+		debugtrack("In exec handler, eid: %ld, sysno: %d\n", eid, sysno);
 		int unitid = -1;
 		int pid = get_pid(tid);
 		process_table_t* pt = get_process_table(pid);
@@ -136,6 +142,8 @@ void exec_handler_(int sysno, long eid, int tid, string cwd, string path, long i
 											sysno, eid, inode, get_absolute_path(cwd,path).c_str());
 					}
 					*flag = 1;
+					*ret_pid = tid;
+					*ret_inode = inode;
 					timestamp_table_t *tt;
 					update_timestamp_table(tt, inode, ts, 1);
 					if (ts < *backtrack_ts)	*backtrack_ts = ts;
@@ -145,7 +153,7 @@ void exec_handler_(int sysno, long eid, int tid, string cwd, string path, long i
 		debugtrack("EXIT from exec handler\n");
 }
 
-void bt_syscall_handler_(char * buf, double ts, double* backtrack_ts, int* flag){
+void bt_syscall_handler_(char * buf, double ts, double* backtrack_ts, int* ret_pid, long* ret_inode, int* flag){
 	// printf("In bt syscall handler: %s", buf);
 		char *ptr, args[100], list[12][256];
 		int i=0, j=0, sysno, fd, ret, tid;
@@ -181,16 +189,16 @@ void bt_syscall_handler_(char * buf, double ts, double* backtrack_ts, int* flag)
 		}
 
 		if(is_exec(sysno)) {
-				exec_handler_(sysno, eid, tid, cwd, path, inode, ts, backtrack_ts, flag);
-				debugtrack("new backtrack_ts: %ld\t", *backtrack_ts);
+				exec_handler_(sysno, eid, tid, cwd, path, inode, ts, backtrack_ts, ret_pid, ret_inode, flag);
+				debugtrack("new backtrack_ts: %lf\t", *backtrack_ts);
 		}
 		if(is_read(sysno)) {
-				read_handler_(sysno, eid, tid, fd, ret, ts, backtrack_ts, flag);
-				debugtrack("new backtrack_ts: %ld\t", *backtrack_ts);
+				read_handler_(sysno, eid, tid, fd, ret, ts, backtrack_ts, ret_pid, ret_inode, flag);
+				debugtrack("new backtrack_ts: %lf\t", *backtrack_ts);
 		}
 		if(is_write(sysno) && !is_socket(sysno)) {
-				write_handler_(sysno, eid, tid, fd, exe, ts, backtrack_ts, flag);
-				debugtrack("new backtrack_ts: %ld\t", *backtrack_ts);
+				write_handler_(sysno, eid, tid, fd, exe, ts, backtrack_ts, ret_pid, ret_inode, flag);
+				debugtrack("new backtrack_ts: %lf\t", *backtrack_ts);
 		}
 		if(is_fork_or_clone(sysno)) {
 				char* temp = strstr(args, "a[1]=");
@@ -198,8 +206,8 @@ void bt_syscall_handler_(char * buf, double ts, double* backtrack_ts, int* flag)
 					temp = strtok(temp, " ");
 					a1 = strtol(temp+5, NULL, 16);
 				}
-				fork_handler_(sysno, eid, tid, a1, ret, exe, ts, backtrack_ts, flag);
-				debugtrack("new backtrack_ts: %ld\t", *backtrack_ts);
+				fork_handler_(sysno, eid, tid, a1, ret, exe, ts, backtrack_ts, ret_pid, ret_inode, flag);
+				debugtrack("new backtrack_ts: %lf\t", *backtrack_ts);
 		}
 		// printf("fields:\teid:%ld, sysno:%d, tid:%d, exe:%s, fd:%d, ret:%d, a1:%ld\n", eid, sysno, tid, exe.c_str(), fd, ret, a1);
 }
@@ -245,14 +253,31 @@ void table_scan(int user_pid, long user_inode){
 		return;
 	}
 
+	backtrack_ts = 4000000000;
+	char* search_type = "b";
 	do {
 			char line[4096];
 			string line_;
 			next_keyword = to_string(keywords[keyword_search_index++]);
+			printf("Searching for keyword: %s\n", next_keyword.c_str());
 
-			pArg = PyTuple_New(1);
+			long nxt_kw = keywords[keyword_search_index-1];
+			double bt_ts_;
+			timestamp_table_t *tt_;
+			HASH_FIND(hh, timestamp_table, &nxt_kw, sizeof(long), tt_);
+			if(tt_ != NULL)
+				bt_ts_ = tt_->ts;
+			else
+				bt_ts_ = backtrack_ts;
+
+			pArg = PyTuple_New(3);
 			pValue = PyUnicode_FromString(next_keyword.c_str());
 			PyTuple_SetItem(pArg, 0, pValue);
+			string backtrack_ts_str = to_string(bt_ts_);
+			pValue = PyUnicode_FromString(backtrack_ts_str.c_str());
+			PyTuple_SetItem(pArg, 1, pValue);
+			pValue = PyUnicode_FromString(search_type);
+			PyTuple_SetItem(pArg, 2, pValue);
 			#ifdef GET_STATS
 				auto loop_start_ts = chrono::system_clock::now();
 				int total_log_lines = 0;
@@ -339,7 +364,8 @@ void table_scan(int user_pid, long user_inode){
 			debugtrack("Running for buf with index %d to %d\n", buf_add_index-1, stop_index);
 
 			for (k=start_index; k>=stop_index; k--){
-					int flag=0, new_eid=1, l;	// flag is to denote if the event has been tainted.
+					int flag=0, ret_pid=0, new_eid=1, l;	// flag is to denote if the event has been tainted.
+					long ret_inode=0;						// ret_inode and ret_pid is the pid/inode of tainted event.
 					char temp[500];
 					strcpy(temp, buf+k*max_log_len);
 					long eid = strtol(temp, NULL, 10);
@@ -360,7 +386,7 @@ void table_scan(int user_pid, long user_inode){
 						first_iteration = 0;
 					}
 
-					debugtrack("\neid: %d, ts: %ld, backtrack_ts: %ld\t\t", eid, ts, backtrack_ts);
+					debugtrack("\neid: %d, ts: %lf, backtrack_ts: %lf\t\t", eid, ts, backtrack_ts);
 					// for(l=0; l<eid_index; l++){
 					// 	if(eid_list[l]==eid){
 					// 		new_eid = 0;
@@ -369,43 +395,30 @@ void table_scan(int user_pid, long user_inode){
 					// }
 
 					if(ts !=0 && ts <= backtrack_ts && new_eid == 1){
-						bt_syscall_handler_(temp, ts, &backtrack_ts, &flag);
+						bt_syscall_handler_(temp, ts, &backtrack_ts, &ret_pid, &ret_inode, &flag);
 						// eid_list[eid_index++] = (int)eid;
 
 						// extract pid and inode from the logs. flag==1 indicates the log is used for tainting.
 						if (flag == 1){
-							char *ptr, list[2][12];
-							strcpy(temp, buf+k*max_log_len);
-							ptr = strtok(temp, ";");
-							int i = 0, j = 0;
-							while(ptr != NULL){
-								if(i==7 || i==18)
-									strcpy(list[j++], ptr);
-								ptr = strtok(NULL, ";");
-								i++;
-							}
-							int pid = atoi(list[0]);
-							long inode = strtol(list[1], NULL, 10);
-							debugtrack("\npid: %d, inode: %ld\n", pid, inode);
-
+							debugtrack("\nret_pid: %d, ret_inode: %ld\n", ret_pid, ret_inode);
 							int pid_exist = 0, inode_exist = 0;
 							for (i=0; i<=keyword_add_index; i++){
-								if (pid == keywords[i]){
+								if (ret_pid == keywords[i]){
 									pid_exist = 1;
 									break;
 								}
 							}
 							for (i=0; i<=keyword_add_index; i++){
-								if (inode == keywords[i]){
+								if (ret_inode == keywords[i]){
 									inode_exist = 1;
 									break;
 								}
 							}
 							debugtrack("pid_exist %d, inode_exist %d\n", pid_exist, inode_exist);
-							if (pid_exist == 0 && pid > 0)
-								keywords[++keyword_add_index] = long(pid);
-							if (inode_exist == 0 && inode > 0)
-								keywords[++keyword_add_index] = inode;
+							if (pid_exist == 0 && ret_pid > 0)
+								keywords[++keyword_add_index] = long(ret_pid);
+							if (inode_exist == 0 && ret_inode > 0)
+								keywords[++keyword_add_index] = ret_inode;
 						}
 						// add a line to the new index only if the prev log is tainted, else replace it.
 						if (flag == 0)
