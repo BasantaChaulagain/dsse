@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <iostream>
+#include <sstream>
 #include <chrono>
 #include <ctime>
+#include <stdlib.h>
+#include <Python.h>
 #include "init_scan.h"
 #include "utils.h"
 #include "tables.h"
@@ -10,7 +13,7 @@
 
 using namespace std;
 
-void write_handler(int sysno, long eid, int tid, int fd, double ts, double* forward_ts, int* flag)
+void write_handler(int sysno, long eid, int tid, int fd, double ts, double* forward_ts, int* ret_pid, long* ret_inode, int* flag)
 {
 		debugtrack("In write handler\n");
 		int unitid = -1;
@@ -31,23 +34,31 @@ void write_handler(int sysno, long eid, int tid, int fd, double ts, double* forw
 						fd, sysno, eid, tid, unitid, fd_el->num_path, fd_el->inode[fd_el->num_path-1], 
 						get_absolute_path(fd_el, fd_el->num_path-1).c_str(), fd_el->pathtype[fd_el->num_path-1].c_str());
 		if(fd_el->is_socket) { // it is socket
-				debugtaint("%s\n", fd_el->path[fd_el->num_path-1].c_str());
+			debugtaint("%s\n", fd_el->path[fd_el->num_path-1].c_str());
+			// if(strncmp(fd_el->path[fd_el->num_path-1].c_str(), "file:/var/run/nscd/socket", 25) != 0){
 				int t_socket = taint_socket(fd_el->path[fd_el->num_path-1]);
 				edge_proc_to_socket(tid, unitid, t_socket);
+				*ret_pid = tid;
+				*flag = 1;
+				if (ts > *forward_ts)	*forward_ts = ts;
+			// }
 		} else {
+			if(is_library_file(get_absolute_path(fd_el, fd_el->num_path-1)) == 0){
 				taint_inode(fd_el->inode[fd_el->num_path-1], eid, get_absolute_path(fd_el, fd_el->num_path-1));
 				edge_proc_to_file(tid, unitid, fd_el->inode[fd_el->num_path-1], eid);
 				
 				timestamp_table_t *tt;
 				update_timestamp_table(tt, fd_el->inode[fd_el->num_path-1], ts, 0);
+				*ret_pid = tid;
+				*ret_inode = fd_el->inode[fd_el->num_path-1];
+				*flag = 1;
+				if (ts > *forward_ts)	*forward_ts = ts;
+			}
 		}
-		*flag = 1;
-
-		if (ts > *forward_ts)	*forward_ts = ts;
 		debugtrack("w-forward_ts: %lf\t", *forward_ts);
 }
 
-void read_handler(int sysno, long eid, int tid, int fd, string exe, int ret, double ts, double* forward_ts, int* flag)
+void read_handler(int sysno, long eid, int tid, int fd, string exe, int ret, double ts, double* forward_ts, int* ret_pid, long* ret_inode, int* flag)
 {
 		debugtrack("In read handler\n");
 		if (sysno == 43)	fd = ret; 	//SYS_accept
@@ -79,6 +90,8 @@ void read_handler(int sysno, long eid, int tid, int fd, string exe, int ret, dou
 										get_absolute_path(fd_el, fd_el->num_path-1).c_str(), 
 										fd_el->pathtype[fd_el->num_path-1].c_str());
 				}
+				*ret_pid = tid;
+				*ret_inode = fd_el->inode[fd_el->num_path-1];
 				*flag = 1;
 				timestamp_table_t *tt;
 				update_timestamp_table(tt, tid, ts, 0);
@@ -88,7 +101,7 @@ void read_handler(int sysno, long eid, int tid, int fd, string exe, int ret, dou
 		}
 }
 
-void fork_handler(int sysno, long eid, int tid, int a1, int ret, string exe, double ts, double* forward_ts, int* flag)
+void fork_handler(int sysno, long eid, int tid, int a1, int ret, string exe, double ts, double* forward_ts, int* ret_pid, long* ret_inode, int* flag)
 {
 		debugtrack("In fork handler\n");
 		int unitid = -1;
@@ -102,6 +115,7 @@ void fork_handler(int sysno, long eid, int tid, int a1, int ret, string exe, dou
 				edge_proc_to_proc(tid, unitid, ret);
 				debugbt("Taint Process: fork (sysno %d) pid %d, unitid %d, exit %d\n", sysno, tid, unitid, ret);
 				
+				*ret_pid = ret;
 				*flag = 1;
 				timestamp_table_t *tt;
 				update_timestamp_table(tt, ret, ts, 0);
@@ -111,7 +125,7 @@ void fork_handler(int sysno, long eid, int tid, int a1, int ret, string exe, dou
 		}
 }
 
-void exec_handler(int sysno, long eid, int tid, string exe, long inode, double ts, double* forward_ts, int* flag)
+void exec_handler(int sysno, long eid, int tid, string exe, long inode, double ts, double* forward_ts, int* ret_pid, long* ret_inode, int* flag)
 {
 		debugtrack("In exec handler\n");
 		int unitid = -1;
@@ -125,6 +139,8 @@ void exec_handler(int sysno, long eid, int tid, string exe, long inode, double t
 										tid, pid, -1, exe.c_str(),
 										sysno, eid, inode);
 
+				*ret_pid = tid;
+				*ret_inode = inode;
 				*flag = 1;
 				timestamp_table_t *tt;
 				update_timestamp_table(tt, pid, ts, 0);
@@ -134,7 +150,7 @@ void exec_handler(int sysno, long eid, int tid, string exe, long inode, double t
 		}
 }
 
-void ft_syscall_handler(char * buf, double ts, double* forward_ts, int* flag)
+void ft_syscall_handler(char * buf, double ts, double* forward_ts, int* ret_pid, long* ret_inode, int* flag)
 {
 		char *ptr, args[100], list[12][256];
 		int i=0, j=0, sysno, fd, ret, tid;
@@ -170,16 +186,16 @@ void ft_syscall_handler(char * buf, double ts, double* forward_ts, int* flag)
 		}
 
 		if(is_exec(sysno)) {
-				exec_handler(sysno, eid, tid, exe, inode, ts, forward_ts, flag);
-				debugtrack("new forward_ts: %ld\t", *forward_ts);
+				exec_handler(sysno, eid, tid, exe, inode, ts, forward_ts, ret_pid, ret_inode, flag);
+				debugtrack("new forward_ts: %lf\t", *forward_ts);
 		}
 		if(is_read(sysno)) {
-				read_handler(sysno, eid, tid, fd, exe, ret, ts, forward_ts, flag);
-				debugtrack("new forward_ts: %ld\t", *forward_ts);
+				read_handler(sysno, eid, tid, fd, exe, ret, ts, forward_ts, ret_pid, ret_inode, flag);
+				debugtrack("new forward_ts: %lf\t", *forward_ts);
 		}
 		if(is_write(sysno)) {
-				write_handler(sysno, eid, tid, fd, ts, forward_ts, flag);
-				debugtrack("new forward_ts: %ld\t", *forward_ts);
+				write_handler(sysno, eid, tid, fd, ts, forward_ts, ret_pid, ret_inode, flag);
+				debugtrack("new forward_ts: %lf\t", *forward_ts);
 		}
 		if(is_fork_or_clone(sysno)) {
 				char* temp = strstr(args, "a[1]=");
@@ -187,162 +203,251 @@ void ft_syscall_handler(char * buf, double ts, double* forward_ts, int* flag)
 					temp = strtok(temp, " ");
 					a1 = strtol(temp+5, NULL, 16);
 				}
-				fork_handler(sysno, eid, tid, a1, ret, exe, ts, forward_ts, flag);
-				debugtrack("new forward_ts: %ld\t", *forward_ts);
+				fork_handler(sysno, eid, tid, a1, ret, exe, ts, forward_ts, ret_pid, ret_inode, flag);
+				debugtrack("new forward_ts: %lf\t", *forward_ts);
 		}
 }
 
 void table_scan_f(int user_pid, long user_inode)
 {
-	FILE* pp;
-	char buf[10000][600];
-	// int eid_list[10000], eid_index=0;
-	int keywords[1000] = {0};
-	int i, k, start_index = 0, stop_index, first_iteration = 1;
-	int buf_add_index, buf_search_index, keyword_add_index, keyword_search_index;
-	buf_add_index = buf_search_index = keyword_add_index = keyword_search_index = 0;
+	#ifdef GET_STATS
+		int count_call_to_server = 0;
+		chrono::duration<double> runtime[1000] = {};
+		int lines_in_buf[1000];
+		int total_logs[1000];
+	#endif
 	
-	string query = "python client.py -c 1 -s ";
+		int max_log_len = 500;
+		char* buf = (char*) malloc((200000*max_log_len) * sizeof(char));
+		// char buf[16000][500];
+		// int eid_list[10000], eid_index=0;
+		long keywords[1000] = {0};
+		string next_keyword;
+		int i, k, start_index = 0, stop_index, first_iteration = 1;
+		int buf_add_index, buf_search_index, keyword_add_index, keyword_search_index;
+		buf_add_index = buf_search_index = keyword_add_index = keyword_search_index = 0;
+	
+		if (user_pid>0) keywords[0] = long(user_pid);
+		else if (user_inode>0) keywords[0] = user_inode;
+				
+		PyObject *pName, *pModule, *pFunc, *pArg, *pValue;
+		Py_Initialize();
+		PyRun_SimpleString("import os, sys, inspect\n"
+							"parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))))\n"
+							"sys.path.insert(0, parent_dir)\n");
+		pName = PyUnicode_DecodeFSDefault("client.client");
+		pModule = PyImport_Import(pName);
+		Py_DECREF(pName);
+		if (pModule == NULL){
+			PyErr_Print();
+			return;
+		}
+		pFunc = PyObject_GetAttrString(pModule, "sse_search");
+		if (pFunc==NULL || !PyCallable_Check(pFunc)){
+			printf("Error initializing function.\n");
+			Py_DECREF(pModule);
+			return;
+		}
+		
+		forward_ts = 0;
+		char* search_type = "f";
+		do {
+			#ifdef GET_STATS
+				auto loop_start_ts = chrono::system_clock::now();
+				int total_log_lines = 0;
+				long double meta_data[4];
+				int meta_idx=0;
+				// auto c1_send_ts_ = chrono::system_clock::now().time_since_epoch().count();
+				// long double c1_send_ts = (long double)(c1_send_ts_)/1000000000;
+			#endif
+				
+				char line[4096];
+				string line_;
+				next_keyword = to_string(keywords[keyword_search_index++]);
+				printf("Searching for keyword: %s\n", next_keyword.c_str());
 
-	if (user_pid>0) keywords[0] = user_pid;
-	else if (user_inode>0) keywords[0] = int(user_inode);
-	debugtrack("keywords[0]: %d\n", keywords[0]);
-	int q=0;
+				long nxt_kw = keywords[keyword_search_index-1];
+				double fw_ts_;
+				timestamp_table_t *tt_;
+				HASH_FIND(hh, timestamp_table, &nxt_kw, sizeof(long), tt_);
+				if(tt_ != NULL)
+					fw_ts_ = tt_->ts;
+				else
+					fw_ts_ = forward_ts;
 
-	do {
-			char line[4096];
-			string search_string = query + to_string(keywords[keyword_search_index++]);
-			printf("\nsearch string: %s\n", search_string.c_str());
-			pp = popen(search_string.c_str(), "r");
-
-			while(fgets(line, 4096, pp) != NULL){
-				if (strtol(line, NULL, 10) == 0)
-					continue;
-
-				char temp[4096], *ptr;
-				strcpy(temp, line);
-				ptr = strtok(temp, ";");
-				ptr = strtok(NULL, ";");
-				ptr = strtok(NULL, ";");
-				if (strncmp(ptr, " UBSI_ENTRY", 11)==0 || strncmp(ptr, " UBSI_EXIT", 10)==0 || strncmp(ptr, " UBSI_DEP", 9)==0)
-					continue;
-				ptr = strtok(ptr, "(");
-				ptr = strtok(NULL, ")");
-				int sysno = atoi(ptr);
-				if (is_file_create(sysno)==0 && is_exec(sysno)==0 && is_write(sysno)==0 && is_read(sysno)==0 && is_fork_or_clone(sysno)==0)
-					continue;
-
-				if(strlen(line) > 600){
-					char t[4096], *ptr;
-					strcpy(t, line);
-					line[0] = '\0';
-					
-					ptr = strtok(t, ";");
-					while (ptr != NULL){
-						if(strlen(ptr)>255){
-							ptr[255]='\0';
-						}
-						strcat(line, ptr);
-						strcat(line, ";");
-						
-						ptr = strtok(NULL, ";");
-					}
-					line[strlen(line)]='\0';
+				pArg = PyTuple_New(3);
+				pValue = PyUnicode_FromString(next_keyword.c_str());
+				PyTuple_SetItem(pArg, 0, pValue);
+				string forward_ts_str = to_string(fw_ts_);
+				pValue = PyUnicode_FromString(forward_ts_str.c_str());
+				PyTuple_SetItem(pArg, 1, pValue);
+				pValue = PyUnicode_FromString(search_type);
+				PyTuple_SetItem(pArg, 2, pValue);
+				pValue = PyObject_CallObject(pFunc, pArg);
+				Py_DECREF(pArg);
+				if (pValue == NULL) {
+					PyErr_Print();
+					fprintf(stderr,"Call failed\n");
+					Py_XDECREF(pFunc);
+        			Py_DECREF(pModule);
+					return;
 				}
+				stringstream ss;
+                ss << PyUnicode_AsUTF8(pValue);
+				Py_DECREF(pValue);
+					
+			#ifdef GET_STATS
+				// auto c1_recv_ts_ = chrono::system_clock::now().time_since_epoch().count();
+				// long double c1_recv_ts = (long double)(c1_recv_ts_)/1000000000;
+			#endif
 
-				strcpy(buf[buf_add_index++], line);
-			}
-
-			debugtrack("Running for buf with index %d to %d\n", start_index, buf_add_index-1);
-			stop_index = buf_add_index-1;
-			for (k=start_index; k<=stop_index; k++){
-					int flag=0, new_eid=1, l;	// flag is to denote if the event has been tainted.
-					char temp[600];
-					strcpy(temp, buf[k]);
-					long eid = strtol(temp, NULL, 10);
-					double ts = stod(temp+10);
-
-					if (first_iteration){
-						long kw = long(keywords[keyword_search_index-1]);
-						timestamp_table_t* tt;
-						HASH_FIND(hh, timestamp_table, &kw, sizeof(long), tt);
-						if (tt != NULL){
-							debugtrack("tt is not null. %lf: %d\n", tt->ts, kw);
-							forward_ts = tt->ts;
+				while(getline(ss, line_, '\n')){
+					strcpy(line, line_.c_str());
+					#ifdef GET_STATS
+						total_log_lines++;
+					#endif
+					if (strtol(line, NULL, 10) == 0){
+						#ifdef GET_STATS
+						if (strncmp(line, "metainfo:", 9) == 0){
+							char *ptr = strtok(line, ":");
+							ptr = strtok(NULL, ":");
+							meta_data[meta_idx++] = stold(ptr);
 						}
-						else{
-							debugtrack("tt is null. %lf: %d\n", ts, kw);
-							forward_ts = ts;
-						}
-						first_iteration = 0;
+						#endif
+						continue;
 					}
+					char temp[4096], *ptr;
+					strcpy(temp, line);
+					ptr = strtok(temp, ";");
+					ptr = strtok(NULL, ";");
+					ptr = strtok(NULL, ";");
+					if (strncmp(ptr, " UBSI_ENTRY", 11)==0 || strncmp(ptr, " UBSI_EXIT", 10)==0 || strncmp(ptr, " UBSI_DEP", 9)==0)
+						continue;
+					ptr = strtok(ptr, "(");
+					ptr = strtok(NULL, ")");
+					int sysno = atoi(ptr);
+					// printf("sysno:%d, buf_add_index:%d\n", sysno, buf_add_index);
+					if (is_file_create(sysno)==0 && is_exec(sysno)==0 && is_write(sysno)==0 && is_read(sysno)==0 && is_fork_or_clone(sysno)==0)
+						continue;
 
-					debugtrack("\neid: %d, ts: %lf, forward_ts: %lf\t\t", eid, ts, forward_ts);
-					// for(l=0; l<eid_index; l++){
-					// 	if(eid_list[l]==eid){
-					// 		new_eid = 0;
-					// 		break;
-					// 	}
-					// }
-
-					if(ts !=0 && ts >= forward_ts && new_eid == 1){
-						// printf("\nIn ft syscall handler: index: %d :: %s", k, temp);
-						ft_syscall_handler(temp, ts, &forward_ts, &flag);
-						// eid_list[eid_index++] = (int)eid;
-
-						// extract pid and inode from the logs.
-						if (flag == 1){
-							char *ptr, list[2][12];
-							strcpy(temp, buf[k]);
-							ptr = strtok(temp, ";");
-							int i = 0, j = 0;
-							while(ptr != NULL){
-								if(i==7 || i==18)
-									strcpy(list[j++], ptr);
-								ptr = strtok(NULL, ";");
-								i++;
-							}
-							int pid = atoi(list[0]);
-							int inode = atoi(list[1]);
-							debugtrack("\npid: %d, inode: %d\n", pid, inode);
-
-							int pid_exist = 0, inode_exist = 0;
-							for (i=0; i<=keyword_add_index; i++){
-								if (pid == keywords[i]){
-									pid_exist = 1;
-									break;
-								}
-							}
-							for (i=0; i<=keyword_add_index; i++){
-								if (inode == keywords[i]){
-									inode_exist = 1;
-									break;
-								}
-							}
-							debugtrack("pid_exist %d, inode_exist %d\n", pid_exist, inode_exist);
-							if (pid_exist == 0 && pid > 0)
-								keywords[++keyword_add_index] = pid;
-							if (inode_exist == 0 && inode > 0)
-								keywords[++keyword_add_index] = inode;							
-						}
+					if(strlen(line) > 500){
+						char t[4096], *ptr;
+						strcpy(t, line);
+						line[0] = '\0';
 						
-						// add a line to the new index only if the prev log is tainted, else replace it.
-						if (flag == 0)
-							buf_add_index--;
+						ptr = strtok(t, ";");
+						while (ptr != NULL){
+							if(strlen(ptr)>220){
+								ptr[220]='\0';
+							}
+							strcat(line, ptr);
+							strcat(line, ";");
+							
+							ptr = strtok(NULL, ";");
+						}
+						line[strlen(line)]='\0';
 					}
-			}
-			start_index = buf_add_index;
-			first_iteration = 1;
-			
-			// printf("\nkeywords\t");
-			// for (i=0; i<=keyword_add_index; i++){
-			// 	printf("%d\t", keywords[i]);
-			// }
+					strcpy(buf + (buf_add_index++ * max_log_len), line);
+				}
+				ss.str(string());
+				
+				stop_index = buf_add_index-1;
+			#ifdef GET_STATS
+				// printf("\nIPC send time: %Lf", meta_data[0]-c1_send_ts);
+				// printf("\nIPC receive time: %Lf", c1_recv_ts-meta_data[1]);
 
-			debugtrack("\nnext keyword: %d\n", keywords[keyword_search_index]);
-			debugtrack("lines in buf: %d\n", buf_add_index);
-			pclose(pp);
-	} while (keywords[keyword_search_index] != 0);
+				lines_in_buf[count_call_to_server] = buf_add_index - start_index;
+				total_logs[count_call_to_server] = total_log_lines;
+			#endif
+				
+				debugtrack("Running for buf with index %d to %d\n", start_index, buf_add_index-1);
+
+				for (k=start_index; k<=stop_index; k++){
+						int flag=0, ret_pid=0, new_eid=1, l;	// ret_inode and ret_pid is the pid/inode of tainted event.
+						long ret_inode=0;						// flag to denote if the event has been tainted.
+						char temp[500];
+						strcpy(temp, buf+k*max_log_len);
+						long eid = strtol(temp, NULL, 10);
+						double ts = stod(temp+11);
+
+						if (first_iteration){
+							long kw = keywords[keyword_search_index-1];
+							timestamp_table_t* tt;
+							HASH_FIND(hh, timestamp_table, &kw, sizeof(long), tt);
+							if (tt != NULL){
+								forward_ts = tt->ts;
+							}
+							else{
+								debugtrack("tt is null. %lf: %d\n", ts, kw);
+								forward_ts = ts;
+							}
+							first_iteration = 0;
+						}
+
+						debugtrack("\neid: %d, ts: %lf, forward_ts: %lf\t\t", eid, ts, forward_ts);
+						// for(l=0; l<eid_index; l++){
+						// 	if(eid_list[l]==eid){
+						// 		new_eid = 0;
+						// 		break;
+						// 	}
+						// }
+						
+						if(ts !=0 && ts >= forward_ts && new_eid == 1){
+							// printf("\nK: %d, %s\n", k, temp);
+							ft_syscall_handler(temp, ts, &forward_ts, &ret_pid, &ret_inode, &flag);
+							// eid_list[eid_index++] = (int)eid;
+
+							// extract pid and inode from the logs.
+							if (flag == 1){
+								debugtrack("\nret_pid: %d, ret_inode: %ld\n", ret_pid, ret_inode);
+								int pid_exist = 0, inode_exist = 0;
+								for (i=0; i<=keyword_add_index; i++){
+									if (ret_pid == keywords[i]){
+										pid_exist = 1;
+										break;
+									}
+								}
+								for (i=0; i<=keyword_add_index; i++){
+									if (ret_inode == keywords[i]){
+										inode_exist = 1;
+										break;
+									}
+								}
+								debugtrack("pid_exist %d, inode_exist %d\n", pid_exist, inode_exist);
+								if (pid_exist == 0 && ret_pid > 0)
+									keywords[++keyword_add_index] = long(ret_pid);
+								if (inode_exist == 0 && ret_inode > 0)
+									keywords[++keyword_add_index] = ret_inode;
+							}
+							// add a line to the new index only if the prev log is tainted, else replace it.
+							if (flag == 0)
+								buf_add_index--;
+						}
+				}
+				start_index = buf_add_index;
+				first_iteration = 1;
+
+				debugtrack("\nnext keyword: %ld\n", keywords[keyword_search_index]);
+				debugtrack("lines in buf: %d\n", buf_add_index);
+
+			#ifdef GET_STATS
+				auto loop_end_ts = chrono::system_clock::now();
+				runtime[count_call_to_server++] = loop_end_ts-loop_start_ts;
+			#endif
+		} while (keywords[keyword_search_index] != 0);
+
+		Py_XDECREF(pFunc);
+		Py_DECREF(pModule);
+		if (Py_FinalizeEx() < 0)
+			return;
+	
+		#ifdef GET_STATS
+			printf("\nTotal calls to server: %d\n", count_call_to_server);
+			printf("\nkeyword\t#total_logs\t#relevant_logs\truntime\n");
+			for (k=0; k<count_call_to_server; k++)
+				printf("%ld\t%d\t%d\t%lf\n", keywords[k], total_logs[k], lines_in_buf[k], runtime[k].count());
+		#endif
+	// }
 }
 
 
@@ -358,6 +463,8 @@ int main(int argc, char** argv)
 		char *init_table_name = NULL;
 		char *f_name = NULL;
 		char *p_name = NULL;
+
+		forward_ts = 0;
 
 		while ((opt = getopt(argc, argv, "i:f:p:t:h")) != -1) {
 				switch(opt) {

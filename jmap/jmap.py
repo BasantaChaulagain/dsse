@@ -36,9 +36,11 @@ import json
 
 FILE = "[JMAP] "
 SEARCH = "search"
+SEARCH_DOC = "search_doc"
 UPDATE = "update"
 ADD_FILE = "add"
-SEARCH_METHOD = "getEncryptedMessages"
+SEARCH_METHOD = "getDecryptedSegments"
+SEARCH_DOC_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
 ADD_FILE_METHOD = "putEncryptedMessage"
 
@@ -109,17 +111,21 @@ JMAP CALLS FOR SSE:
 def jmap_header():
     return JMAP_HEADER
 
-def pack_search(data, id_num):
+def pack_search_doc(data):
+    return json.dumps([SEARCH_DOC_METHOD, {"query": data}])
+    
+def pack_search(data, id_num, cluster_id):
     id_num = json.dumps(id_num)
-    return json.dumps([SEARCH_METHOD, {"query": data}, id_num])
+    cluster_id = json.dumps(cluster_id)
+    return json.dumps([SEARCH_METHOD, {"query": data}, id_num, cluster_id])
 
-def pack_update(data, id_num):
-    return json.dumps([UPDATE_METHOD, {"index": data}, id_num])
+def pack_update_index(data, id_num, cluster_id):
+    return json.dumps([UPDATE_METHOD, {"index": data}, id_num, cluster_id])
 
 def pack_add_file(data, id_num, filename):
     return json.dumps([ADD_FILE_METHOD, {"file": data.decode(), "filename": filename}, id_num])
 
-def pack(METHOD, data, id_num, filename=None):
+def pack(METHOD, data, id_num=None, filename=None):
     FUNC = "jmap.pack"
     message = None
 
@@ -128,10 +134,15 @@ def pack(METHOD, data, id_num, filename=None):
         return -1
 
     if METHOD == SEARCH:
-        message = pack_search(data, id_num)
+        cluster_id = filename
+        message = pack_search(data, id_num, cluster_id)
+    
+    elif METHOD == SEARCH_DOC:
+        message = pack_search_doc(data)
 
     elif METHOD == UPDATE:
-        message = pack_update(data, id_num)
+        cluster_id = filename
+        message = pack_update_index(data, id_num, cluster_id)
 
     elif METHOD == ADD_FILE:
         message = pack_add_file(data, id_num, filename)
@@ -149,13 +160,20 @@ def unpack_search(data):
 
     method = data[0]
     id_num = json.loads(data[2])
+    cluster_id = json.loads(data[3])
 
     # Limit scope to args (data[1])
     data = data[1]
     query = data['query']
 
-    return (method, query, id_num)
+    return (method, query, id_num, cluster_id)
 
+def unpack_search_doc(data):
+    if data[0] != SEARCH_DOC_METHOD:
+        return -1
+    method = data[0]
+    query = data[1]['query']
+    return (method, query)
 
 def unpack_update(data):
     
@@ -164,12 +182,13 @@ def unpack_update(data):
 
     method = data[0]
     id_num = data[2]
+    cluster_id = data[3]
 
     # Limit scope to args (data[1])
     data = data[1]
     new_index = data['index']
 
-    return (method, new_index, id_num)
+    return (method, new_index, id_num, cluster_id)
 
 def unpack_add_file(data):
 
@@ -196,6 +215,8 @@ def unpack(METHOD, data):
   
     if METHOD == SEARCH:
         return unpack_search(data)
+    elif METHOD == SEARCH_DOC:
+        return unpack_search_doc(data)
     elif METHOD == UPDATE:
         return unpack_update(data)
     elif METHOD == ADD_FILE: 

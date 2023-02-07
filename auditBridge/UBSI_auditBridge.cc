@@ -44,6 +44,7 @@ int mergeUnit = 0;
 int num_org_unit_entry = 0;
 int num_unit_entry = 0;
 FILE *testout;
+long ignored_log=0;
 
 // UBSI Unit analysis
 #include <assert.h>
@@ -1521,7 +1522,9 @@ void analyze_syscall(unit_table_t *ut, char* buf, int sysno, bool succ, long a0)
 				char *temp = (char *)malloc(strlen(buf)+1);
 				strcpy(temp, buf);
 				string filePath = filename_open_tmp(temp, &inode, &flag);
-				if (filePath.empty()) return;
+				if (filePath.empty()){
+					ignored_log ++;
+					return;}
 				
 				const char *path = filePath.c_str();
 				if(CSVOUT) CSV_file_open(ut, buf, flag);
@@ -2221,5 +2224,6 @@ void kyu_test(int max_pid)
 		}
 
 		fprintf(stderr, "thread: %d\n", num_threads);
+		fprintf(stderr, "Ignored logs: %ld\n", ignored_log);
 }
 

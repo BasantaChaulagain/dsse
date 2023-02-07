@@ -31,6 +31,7 @@
 #
 ############
 
+from datetime import timedelta
 import os
 import inspect
 import sys
@@ -45,6 +46,7 @@ from flask import Flask
 from flask import request
 from flask import jsonify
 from pathlib import Path
+import time
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
@@ -59,8 +61,10 @@ DEBUG = 1
 # CMD list
 UPDATE = "update"
 SEARCH = "search"
+SEARCH_DOC = "search_doc"
 ADD_FILE = "add"
-SEARCH_METHOD = "getEncryptedMessages"
+SEARCH_METHOD = "getDecryptedSegments"
+SEARCH_DOC_METHOD = "getEncryptedMessages"
 UPDATE_METHOD = "updateEncryptedIndex"
 ADD_FILE_METHOD = "putEncryptedMessage"
 
@@ -106,13 +110,13 @@ def update():
         return jsonify(results='Error: not json')
 
     # Unpack 'arguments'
-    (method, new_index, id_num) = jmap.unpack(UPDATE, request.get_json())
+    (method, new_index, id_num, cluster_id) = jmap.unpack(UPDATE, request.get_json())
 
     if method != UPDATE_METHOD:
         return jsonify(results='Error: Wrong Method for url')
 
     # Open local ecypted index and get length
-    index = dbm.open("indexes/"+str(id_num)+"_index", "c")
+    index = dbm.open("indexes/"+str(cluster_id)+"_index_"+str(id_num), "c")
     index_len = get_index_len(index)
 
     # Iterate through update list, replacing existing entries in local
@@ -150,11 +154,11 @@ def update():
 
 @app.route('/search', methods=['POST'])
 def search():
-
+    in_time = time.time()
     if not request.json:
         return jsonify(results='Error: not json')
 
-    (method, query, id_num) = jmap.unpack(SEARCH, request.get_json())
+    (method, query, id_num, cluster_id) = jmap.unpack(SEARCH, request.get_json())
 
     if method != SEARCH_METHOD:
         return jsonify(results='Error: Wrong Method for url')
@@ -164,27 +168,25 @@ def search():
     # and k2 for decrypting the document name(s).  Use k1 to match the key 
     # and use k2 to decrypt each value (mail ID or name) that is associated
     # with that key.
-    M = []
-    cnt=0
-    for i in query:
-        index = dbm.open("indexes/"+id_num[cnt]+"_index", "r")
-        print("searching in file: ", "indexes/"+id_num[cnt]+"_index")
+    d_ = []
+    i = 0
+    for query_ in query:
+        index = dbm.open("indexes/"+cluster_id[i]+"_index_"+id_num[0], "r")
+        print("searching in file: ", "indexes/"+cluster_id[i]+"_index_"+id_num[0])
         count = get_index_len(index)
-        cnt += 1
 
         # Drop unicode
-        k1 = i[0].encode('latin1', 'ignore')
-        k2 = i[1].encode('latin1', 'ignore')
+        k1 = query_[0].encode('latin1', 'ignore')
         c = 0
 
         # If i2, then we have already recieved the correct 'c' with which
         # to find 'key' term.
         try:
-            if i[2]:
-                c = i[2].encode('latin1', 'ignore')
+            if query_[1]:
+                c = query_[1].encode('latin1', 'ignore')
         except:
             pass
-
+    
         # D [] is a list of mail IDs found for a term.
         # Its leftover 'legacy' code. Used to be you had to iterate through
         # entire encrypted index for repeated use of a term in different
@@ -195,59 +197,53 @@ def search():
         # Plus, it should eventually change to have a limit of mail IDs, so
         # a single term will show up multiple times, each key pointing to 
         # some number of document IDs.
-        D = []
 
         # Find doc id list at that key in the index
-        d = new_get(index, k1, c)
+        d = new_get(index, k1, c).decode()
+        d_.append(d)
 
         if not d:
             print("get() returned None!")
-        else:
-            D.append(d)
+            
+        i += 1
 
-        if not D: continue
+    # 'd' represents an encrypted id number for a message (in the 
+    # simple case, just the message's name).
 
-        # 'd' represents an encrypted id number for a message (in the 
-        # simple case, just the message's name).
-
-        # Go through list of d's in which the search query was found and
-        # dec() each and add to list of id's (M).
-        # Send those messages are found to the client
-
-        for d in D:
-            # Decrypt d, getting list of docs that word is in
-            m = dec(k2, d).decode()
-            m_str = ''
-            for x in m:
-                if x in string.printable:
-                    m_str += x
-            for msg in m_str.split(DELIMETER):
-                print("-----\t" + msg)
-                if msg not in M:
-                    M.append(str(msg)) 
-
-    if not M:
-        buf = "Found no results for query"
-        print("[Server] " +  buf)
-        return jsonify(results=buf)
+    # Go through list of d's in which the search query was found and
+    # dec() each and add to list of id's (M).
+    # Send those messages are found to the client
+    return ({"results":d_})
 
 
-    # TODO: Separate method for sending back files?  
-    # Should it be whole files or just msg ids?
-    # Currently sends msgs back in their entirety
+# TODO: Separate method for sending back files?  
+# Should it be whole files or just msg ids?
+# Currently sends msgs back in their entirety
 
-    # TODO: Need to send back id_num and check at client side
+# TODO: Need to send back id_num and check at client side
 
-    # For each doc in M[], send file back to Client
-    # buf is list of msgs so client can receive them all together 
-    # and parse
+@app.route('/search_doc', methods=['POST'])
+def search_doc():
+    in_time = time.time()
+    if not request.json:
+        return jsonify(results='Error: not json')
+
+    (method, query) = jmap.unpack(SEARCH_DOC, request.get_json())
+
+    if method != SEARCH_DOC_METHOD:
+        return jsonify(results='Error: Wrong Method for url')
+        
     buf = []
-    for m in M:
-        path = os.path.join(app.config['UPLOAD_FOLDER'], m)
+        
+    for seg_id in query:
+        path = os.path.join(app.config['UPLOAD_FOLDER'], seg_id)
         fd = open(path, "rb")
         buf.append(fd.read().decode('latin1'))
         fd.close()
-        
+    
+    out_time = time.time()
+    buf.append(in_time)
+    buf.append(out_time)
     return jsonify(results=buf)
 
 

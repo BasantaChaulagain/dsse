@@ -38,11 +38,12 @@ from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto import Random
+from datetime import datetime
 import bcrypt
 import binascii
 import string
 import dbm
-from flask import Flask
+from flask import Flask, jsonify, request
 import requests
 from nltk.stem.porter import PorterStemmer
 import os
@@ -50,6 +51,8 @@ import json
 import re
 import inspect
 import sys
+import shutil
+from time import time
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
@@ -60,6 +63,7 @@ from client.log_handler import variable_schema, LogHandler
 
 DEBUG = 1
 SEARCH = "search"
+SEARCH_DOC = "search_doc"
 UPDATE = "update"
 ADD = "add"
 
@@ -77,14 +81,13 @@ DELIMETER = "++?"
 # final punct (ie: '.' ',' '!' etc)
 EXCLUDE = string.punctuation
 
-app = Flask(__name__)
-
 def get_schema_id(var):
     for key, value in variable_schema.items():
         match = re.fullmatch(value, var)
         if match:
             return(str(key))
     return None
+
 
 def get_lookup_table():
     try:
@@ -96,6 +99,21 @@ def get_lookup_table():
     except:
         lookup_table = [{},{}]
     return lookup_table
+
+
+def get_cluster_id(word, schema_id):
+    cluster_ids = []
+    try:
+        with open('vdict.json', 'r') as f:
+            vdict = json.load(f)
+
+        for key, value in vdict.items():
+            for each in value.get(schema_id).values():
+                if each[0] == word:
+                    cluster_ids.append(key)
+        return cluster_ids
+    except:
+        return cluster_ids
 
 
 ########
@@ -131,7 +149,7 @@ class SSE_Client():
 
         # Stemming tool (cuts words to their roots/stems)
         self.stemmer = PorterStemmer()
-        self.ensure_metadata_db()
+        self.db = self.ensure_metadata_db()
 
     def initKeys(self):
         # initialize keys k & kPrime
@@ -167,20 +185,12 @@ class SSE_Client():
 
     def ensure_metadata_db(self):
         db = sqlite3.connect('metadata')
+        db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, ts_start real, ts_end real)''')
         if db == None:
             print("Error while opening database")
-        else:
-            db.execute('CREATE TABLE IF NOT EXISTS file_segment (file_id TEXT, segment_id TEXT, ts_start REAL, ts_end REAL)')
-
-
-    def ensure_metadata_db(self):
-        db = sqlite3.connect('metadata')
-        if db == None:
-            print("Error while opening database")
-        else:
-            db.execute('CREATE TABLE IF NOT EXISTS file_segment (file_id TEXT, segment_id TEXT, ts_start REAL, ts_end REAL)')
-
-
+        return db
+        
+        
     def encryptSegment(self, infile, outfile):
 
         # read in infile (opened file descriptor)
@@ -195,6 +205,7 @@ class SSE_Client():
 
         # write encrypted data to new file
         outfile.write((self.iv + self.cipher.encrypt(buf.encode('latin1'))))
+
 
     def decryptSegment(self, buf, outfile=None):
         # Just pass in input file buf and fd in which to write out
@@ -246,23 +257,30 @@ class SSE_Client():
 
 
     def update(self, filename):
-        # print("Initial scanning {}\n".format(filename))
-        # os.system('./init_scan {}'.format(filename))
+        begin_ts = datetime.now()
+        
         file = FileHandler(filename)
         segments = file.split_file()
         file.encode_logs()
         lookup_table = file.get_lookup_table()
+        
+        encode_ts = datetime.now()
 
         # First update index and send it
         print("updating the index")
-        indexes = self.update_index(lookup_table)
+        (indexes, update_idx_ts) = self.update_index(lookup_table)
+
         for index in indexes:
-            message = jmap.pack(UPDATE, index[0], index[1])
+            # ((index, vdict_id. cluster_id))
+            message = jmap.pack(UPDATE, index[0], index[1], index[2])
             # print(message)
             r = self.send(UPDATE, message)
-            data = r.json()
-            results = data['results']
+            if(type(r) != dict):
+                r = r.json()
+            results = r['results']
             print("Results of Index UPDATE: " + results) 
+            
+        encrypt_idx_ts = datetime.now()
         
         # Then encrypt msg
         for seg in segments:
@@ -280,23 +298,36 @@ class SSE_Client():
 
             # Then send message
             r = self.send(ADD, message, outfilename)        
-            data = r.json()
-            results = data['results']
+            if(type(r) != dict):
+                r = r.json()
+            results = r['results']
             print("Results of UPDATE/ADD FILE: " + results)
 
             outfile.close()
 
+        for f in os.listdir("tmp/"):
+            os.remove(os.path.join("tmp/", f))
+        
+        encrypt_ts = datetime.now()
+        
+        print("\nStats (time required):")
+        print("Encode segments: {}\nUpdate index: {}\nEncrypt index: {}\nEncrypt segments: {}\n"
+              .format(encode_ts-begin_ts, update_idx_ts-encode_ts, encrypt_idx_ts-update_idx_ts, encrypt_ts-encrypt_idx_ts))
+        print("Encoding: {}\nEncrypting: {}\nTotal: {}".format(update_idx_ts-begin_ts, encrypt_ts-update_idx_ts, encrypt_ts-begin_ts))
+
 
     def update_index(self, lookup_table):
-
         vdict = lookup_table[1]
-        for key, value in vdict.items():  
-            index = dbm.open("indexes/"+key+"_index", "c")
-            index_IDs = dbm.open("indexes/"+key+"_index_IDs", "c")
+        for k, v in vdict.items():
+            cluster_id = k
+            key = "9"   # variable schema for integer
+            integer_dict = v.get(key)
+            index = dbm.open("indexes/"+cluster_id+"_index_"+key, "c")
+            index_IDs = dbm.open("indexes/"+cluster_id+"_index_IDs_"+key, "c")
 
-            vdict_items = list(value.values())
+            vdict_items = list(integer_dict.values())
             for item in vdict_items:
-                # sample item: ['DAEMON_START', 1, ['bYvf8pWtahZSNwiVMs7M8g']]
+                # sample item: ['DAEMON_START', 2, ['bYvf8pWtahZSNwiVMs7M8g']]
                 if item[0] not in index.keys():
                     index[item[0]] = str(item[1])
                 else:
@@ -311,16 +342,20 @@ class SSE_Client():
             
             index.close()
             index_IDs.close()
+            
+        update_idx_ts = datetime.now()
 
         indexes = []
-        vdict_keys = vdict.keys()
-        for i in vdict_keys:
-            ind = "indexes/"+str(i)+"_index"
-            ind_id = "indexes/"+str(i)+"_index_IDs"
-            index = self.encryptIndex(ind, ind_id)
-            indexes.append((index, i))
+        for k,v in vdict.items():
+            cluster_id = k
+            key = "9"   # variable schema for integer
 
-        return indexes
+            ind = "indexes/"+cluster_id+"_index_"+key
+            ind_id = "indexes/"+cluster_id+"_index_IDs_"+key
+            index = self.encryptIndex(ind, ind_id)
+            indexes.append((index, int(key), cluster_id))
+            
+        return (indexes, update_idx_ts)
 
 
     def encryptIndex(self, index, index_IDs):
@@ -360,25 +395,26 @@ class SSE_Client():
         return L
 
 
-    def search(self, query):
-        query = query.split()
-        print("query: ", query)
+    def search(self, query, base_ts=0, search_type=''):
+        return_result = ""
+        return_result += "metainfo: %s\n" % time()
 
         # Generate list of querys (may be just 1)
         L = []
         ids = []
-        for word in query:
-            word = word.lower()
-            
-            schema_id = get_schema_id(word)
-            ids.append(schema_id)
-            index_file = "indexes/"+schema_id+"_index"
-            
+        word = query.lower()
+        
+        schema_id = get_schema_id(word)
+        ids.append(schema_id)
+        cluster_ids = get_cluster_id(word, schema_id)
+        
+        for cid in cluster_ids:
+            index_file = "indexes/"+cid+"_index_"+schema_id
             if (os.path.exists(index_file)):
                 index = dbm.open(index_file, "r")
             else:
-                print("Search keyword not found")
-                return -1
+                return_result += "Search keyword not found\n"
+                return return_result
 
             # For each term of query, first try to see if it's already in
             # index. If it is, send c along with k1 and k2. This will 
@@ -393,7 +429,6 @@ class SSE_Client():
             # correct encrypted entry for the term on the server, and k2
             # will be used to decrypt the mail ID(s)
             k1 = self.PRF(self.k, ("1" + word))
-            k2 = self.PRF(self.k, ("2" + word))
 
             # If no 'c' (term not in local index so likely not on server),
             # just send k1 and k2. Will take a long time to return false
@@ -401,41 +436,84 @@ class SSE_Client():
             # in local index?  Can we rely on the local index always being
             # up to date?
             if not c:
-                L.append((k1, k2))
+                L.append((k1))
             # Otherwise send along 'c'. 
             else:
                 c = str(int(c))
-                L.append((k1, k2, c))
-
-        message = jmap.pack(SEARCH, L, ids)
-
+                L.append((k1, c))
+            
+        k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore')    
+        
+        message = jmap.pack(SEARCH, L, ids, cluster_ids)
         # Send data and unpack results.
-        r = self.send(SEARCH, message) 
-        # print("r: ", r)
-        ret_data = r.json()
-        # print("ret_data: ", ret_data)
+        ret_data = self.send(SEARCH, message)
+
+        segments_e = ret_data['results']
+        segments_d = []
+        
+        for each in segments_e:
+            m_str = ''
+            m = self.dec(k2, each).decode()
+            for x in m:
+                if x in string.printable:
+                    m_str += x
+            for msg in m_str.split(DELIMETER):
+                if msg not in segments_d:
+                    segments_d.append(str(msg))
+                
+        cur = self.db.cursor()
+        if search_type == 'f':
+            cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_start<=? and ts_end>=?''', (base_ts, base_ts))
+            base_segment = [list[0] for list in cur.fetchall()]
+            if len(base_segment) >= 1:
+                base_segment = base_segment[0]
+                cur.execute('''SELECT ts_start FROM SEGMENT_INFO WHERE segment_id=?''', (base_segment, ))
+                base_ts = cur.fetchone()[0]
+            cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_start>=?''', (base_ts, ))
+            relevant_segments = [list[0] for list in cur.fetchall()]
+        
+        elif search_type == 'b':
+            cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_start<=? and ts_end>=?''', (base_ts, base_ts))
+            base_segment = [list[0] for list in cur.fetchall()]
+            if len(base_segment) >= 1:
+                base_segment = base_segment[-1]
+                cur.execute('''SELECT ts_end FROM SEGMENT_INFO WHERE segment_id=?''', (base_segment, ))
+                base_ts = cur.fetchone()[0]
+            cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_end<=?''', (base_ts, ))
+            relevant_segments = [list[0] for list in cur.fetchall()]
+        
+        return_segments = []
+        for each in segments_d:
+            if each in relevant_segments:
+                return_segments.append(each)
+                
+        message = jmap.pack(SEARCH_DOC, return_segments)
+        ret_data = self.send(SEARCH_DOC, message)
+        
+        if(type(ret_data) != dict):
+            ret_data = ret_data.json()
         results = ret_data['results']
-        print("Results of SEARCH:")
-
+        return_result += "Results of SEARCH:\n"
+        
         if results == NO_RESULTS:
-            print(results)
-            return -1
+            return_result += "%s\n" % results
+            return return_result
 
-        # print(results)
+        decoded_message = ''''''
         for i in results:
-            # print(i.encode('latin1'))
             decrypted = self.decryptSegment(i.encode('latin1'), )
-            # print("decrypted: ", decrypted)
             lookup_table = get_lookup_table()
             decrypted_ = decrypted.split('\n')[:-1]
-            l = LogHandler(lookup_table)
-            for each in decrypted_:
-                # print("before decoding", each)
-                decoded = l.decode(each)
-                for word in query:
+            for cid in cluster_ids:
+                l = LogHandler(lookup_table, cid)
+                for each in decrypted_:
+                    decoded = l.decode(each)
                     if re.search(r'\b{}\b'.format(word), decoded):
-                        print(decoded)
-                        # pass
+                        decoded_message += (decoded+'\n')
+        
+        return_result += "metainfo: %s\n" % time()
+        return_result += "%s" % decoded_message
+        return(return_result)
 
     def PRF(self, k, data):
         if type(data) == str:
@@ -445,9 +523,17 @@ class SSE_Client():
         hmac = HMAC.new(k, data, SHA256)
         return hmac.hexdigest()
 
+    # Decrypt doc ID using k2
+    def dec(self, k2, d):
+        d_bin = binascii.unhexlify(d) 
+        iv = d_bin[:16]
+        cipher = AES.new(k2[:16], AES.MODE_CBC, iv)
+        doc = cipher.decrypt(d_bin[16:])
+
+        return doc
 
     def send(self, routine, data, filename = None, in_url = DEFAULT_URL):
-        print("sending to ", in_url)
+        # print("sending to ", in_url)
         url = in_url
 
         # Currently, each server url is just <IP>/<ROUTINE>, so just append
@@ -455,6 +541,9 @@ class SSE_Client():
 
         if routine == SEARCH:
             url = url + SEARCH
+            headers = jmap.jmap_header()
+        elif routine == SEARCH_DOC:
+            url = url + SEARCH_DOC
             headers = jmap.jmap_header()
         elif routine == UPDATE:
             url = url + UPDATE
@@ -474,4 +563,13 @@ class SSE_Client():
 
         # Send to server using requests's post method, and return results
         # to calling method
-        return requests.post(url, data, headers = headers)
+        client_out_time = time()
+        result = requests.post(url, data, headers = headers)
+        client_in_time = time()
+        result_json = result.json()
+        if(len(result_json['results'])>1 and type(result_json['results']) == list and type(result_json['results'][-1]) == float):
+            server_out_time = result_json['results'].pop()
+            server_in_time = result_json['results'].pop()
+            # print("client-to-server:", float(server_in_time)-client_out_time)  # n/w delay when sending
+            # print("server-to-client:", client_in_time-float(server_out_time))  # n/w delay when receiving
+        return (result_json)

@@ -9,6 +9,7 @@
 // #define DEBUGTRACK
 // #define DEBUGNOW 1
 // #define DEBUG 1
+#define GET_STATS 1
 
 #ifdef DEBUGBT
 		#define DEBUGANY

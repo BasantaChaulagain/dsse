@@ -14,6 +14,7 @@ import os
 import inspect
 import sys
 import yaml
+import socket
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
@@ -29,8 +30,11 @@ DEBUG = 1
 CSV_INPUT = 1
 # CSV_INPUT = config["GLOBAL"]["CSV_INPUT"]
 
-def main():
+def sse_search(keyword, base_ts, type):
+    sse = SSE_Client()
+    return(sse.search(keyword, base_ts, type))
 
+def main():
     # Set-up a command-line argument parser
 
     # TODO: Fix argument parser. It works for what it is, but I don't 
@@ -64,7 +68,8 @@ def main():
         if (DEBUG):
            print(("Searching remote index for word(s): '%s'" 
                   % args.search[0]))
-        sse.search(args.search[0])
+        res = sse.search(args.search[0], args.search[1], args.search[2])
+        print(res)
 
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")
@@ -75,7 +80,6 @@ def main():
             for k in index_.keys():
                 print("k:%s\tv:%s" % (k, index_[k]))
             index_.close()
-
 
     elif args.test_http:
         url = "http://localhost:5000/search"
