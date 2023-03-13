@@ -228,8 +228,8 @@ void table_scan(int user_pid, long user_inode){
 	long keywords[1000] = {0};
 	string next_keyword;
 	int i, k, start_index, stop_index = 0, first_iteration = 1;
-	int buf_add_index, buf_search_index, keyword_add_index, keyword_search_index;
-	buf_add_index = buf_search_index = keyword_add_index = keyword_search_index = 0;
+	int buf_add_index, keyword_add_index, keyword_search_index;
+	buf_add_index = keyword_add_index = keyword_search_index = 0;
 	
 	if (user_pid>0) keywords[0] = long(user_pid);
 	else if (user_inode>0) keywords[0] = user_inode;

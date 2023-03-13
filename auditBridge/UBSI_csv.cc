@@ -282,7 +282,15 @@ string CSV_common(unit_table_t *ut, char *buf, const char *type)
 
 		str.setf(ios::fixed);
 		str << eid << DELIMITER;
-		str << t << "." << mil << "(" << time.c_str() << ")" << DELIMITER;
+		
+		// mil convert to 3 digit if less than 3.
+		string mil_s = to_string(mil);
+		if (mil_s.length() == 2)
+        	mil_s = "0"+mil_s;
+		else if (mil_s.length() == 1)
+			mil_s = "00"+mil_s;
+
+		str << t << "." << mil_s << "(" << time.c_str() << ")" << DELIMITER;
 		if(type == NULL) {
 				if(sysno <= 311) str << sysent[sysno].sys_name << "(" << sysno << ")" << DELIMITER;
 				else str << "UNKNOWN(" << sysno << ")" << DELIMITER;
