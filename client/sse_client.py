@@ -323,25 +323,14 @@ class SSE_Client():
             key = "9"   # variable schema for integer
             integer_dict = v.get(key)
             index = dbm.open("indexes/"+cluster_id+"_index_"+key, "c")
-            index_IDs = dbm.open("indexes/"+cluster_id+"_index_IDs_"+key, "c")
 
             vdict_items = list(integer_dict.values())
             for item in vdict_items:
-                # sample item: ['DAEMON_START', 2, ['bYvf8pWtahZSNwiVMs7M8g']]
-                if item[0] not in index.keys():
-                    index[item[0]] = str(item[1])
-                else:
-                    if item[1] != int(index.get(item[0])):
-                        index[item[0]] = str(item[1])
-
-                if item[0] not in index_IDs.keys():
-                    index_IDs[item[0]] = DELIMETER.join(item[2])
-                else:
-                    if int(item[1]) != index.get(item[0]):
-                        index[item[0]] = DELIMETER.join(item[2])
-            
+                # sample item: ['DAEMON_START', ['bYvf8pWtahZSNwiVMs7M8g']]
+                index[item[0]] = DELIMETER.join(item[1])
+                
+            # index.close()
             index.close()
-            index_IDs.close()
             
         update_idx_ts = datetime.now()
 
@@ -350,21 +339,20 @@ class SSE_Client():
             cluster_id = k
             key = "9"   # variable schema for integer
 
-            ind = "indexes/"+cluster_id+"_index_"+key
-            ind_id = "indexes/"+cluster_id+"_index_IDs_"+key
-            index = self.encryptIndex(ind, ind_id)
+            # ind = "indexes/"+cluster_id+"_index_"+key
+            ind_id = "indexes/"+cluster_id+"_index_"+key
+            index = self.encryptIndex(ind_id)
             indexes.append((index, int(key), cluster_id))
             
         return (indexes, update_idx_ts)
 
 
-    def encryptIndex(self, index, index_IDs):
+    def encryptIndex(self, index):
 
         # This is where the meat of the SSE update routine is implemented
 
         L = []
         index = dbm.open(index, "r")
-        index_IDs = dbm.open(index_IDs, "r")
        
         # For each word, look through local index to see if it's there. If
         # not, set c = 0, and apply the PRF. Otherwise c == number of 
@@ -373,24 +361,20 @@ class SSE_Client():
         for word in index.keys():
             if type(word) == bytes:
                 word = word.decode()
-            count = index[word]
-            if type(count) == bytes:
-                count = count.decode()
+
             # Initialize K1 and K2
             k1 = self.PRF(self.k, ("1" + word))
             k2 = self.PRF(self.k, ("2" + word))
  
             # Set l as the PRF of k1 (1 || w) and c (num of occur) if parsing the body            
-            l = self.PRF(k1, count)
-            lprime = self.PRF(k1, str(int(count)-1))
+            l = self.PRF(k1, word)
 
-            segment_ids = index_IDs[word].decode()
+            segment_ids = index[word].decode()
             d = self.encryptSegmentID(k2, segment_ids).decode()
 
-            L.append((l, d, lprime))
+            L.append((l, d))
 
         index.close()
-        index_IDs.close()
 
         return L
 
@@ -399,14 +383,14 @@ class SSE_Client():
         return_result = ""
         return_result += "metainfo: %s\n" % time()
 
-        # Generate list of querys (may be just 1)
         L = []
-        ids = []
         word = query.lower()
         
         schema_id = get_schema_id(word)
-        ids.append(schema_id)
         cluster_ids = get_cluster_id(word, schema_id)
+        
+        k1 = self.PRF(self.k, ("1" + word)).encode('latin1', 'ignore')
+        k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore') 
         
         for cid in cluster_ids:
             index_file = "indexes/"+cid+"_index_"+schema_id
@@ -416,35 +400,18 @@ class SSE_Client():
                 return_result += "Search keyword not found\n"
                 return return_result
 
-            # For each term of query, first try to see if it's already in
-            # index. If it is, send c along with k1 and k2. This will 
-            # massively speed up search on server (1.5 minutes to < 1 sec)
             try:
-                c = index[word]
+                ind_exists = index[word]
             except:
-                c = None
-
-            # Use k, term ('i') and '1' or '2' as inputs to a pseudo-random
-            # function to generate k1 and k2. K1 will be used to find the 
-            # correct encrypted entry for the term on the server, and k2
-            # will be used to decrypt the mail ID(s)
-            k1 = self.PRF(self.k, ("1" + word))
-
-            # If no 'c' (term not in local index so likely not on server),
-            # just send k1 and k2. Will take a long time to return false
-            # TODO, should the client just kill any search for a term not
-            # in local index?  Can we rely on the local index always being
-            # up to date?
-            if not c:
-                L.append((k1))
-            # Otherwise send along 'c'. 
-            else:
-                c = str(int(c))
-                L.append((k1, c))
-            
-        k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore')    
+                ind_exists = None
+                
+            # Search for the word only if it exists in the client index.
+            if ind_exists:
+                hashed_word = self.PRF(k1, word)
+                L.append(hashed_word)
+               
         
-        message = jmap.pack(SEARCH, L, ids, cluster_ids)
+        message = jmap.pack(SEARCH, L, schema_id, cluster_ids)
         # Send data and unpack results.
         ret_data = self.send(SEARCH, message)
 

@@ -117,7 +117,6 @@ def update():
 
     # Open local ecypted index and get length
     index = dbm.open("indexes/"+str(cluster_id)+"_index_"+str(id_num), "c")
-    index_len = get_index_len(index)
 
     # Iterate through update list, replacing existing entries in local
     # index if collisions
@@ -127,24 +126,6 @@ def update():
         # present.
         i0 = i[0].encode('latin1', 'ignore')
         i1 = i[1].encode('latin1', 'ignore')
-        match = i0
-
-        # if i2 exists, use that to match (hash of term with c - 1).
-        # Otherwise match with i0, representing word hahsed with header
-        try:
-            if i[2]:
-                i2 = i[2].encode('latin1', 'ignore')
-                match = i2
-        except:
-            pass
-        # Go through local index and compare, if match, then delete that 
-        # entry and add new one.
-        exists = 0
-        for k in index.keys():
-            if match == k: # and i1 == v:
-                exists = 1
-                del index[k]
-                break
 
         index[i0] = i1
 
@@ -168,52 +149,24 @@ def search():
     # and k2 for decrypting the document name(s).  Use k1 to match the key 
     # and use k2 to decrypt each value (mail ID or name) that is associated
     # with that key.
-    d_ = []
+    results = []
     i = 0
-    for query_ in query:
-        index = dbm.open("indexes/"+cluster_id[i]+"_index_"+id_num[0], "r")
-        print("searching in file: ", "indexes/"+cluster_id[i]+"_index_"+id_num[0])
-        count = get_index_len(index)
-
-        # Drop unicode
-        k1 = query_[0].encode('latin1', 'ignore')
-        c = 0
-
-        # If i2, then we have already recieved the correct 'c' with which
-        # to find 'key' term.
-        try:
-            if query_[1]:
-                c = query_[1].encode('latin1', 'ignore')
-        except:
-            pass
     
-        # D [] is a list of mail IDs found for a term.
-        # Its leftover 'legacy' code. Used to be you had to iterate through
-        # entire encrypted index for repeated use of a term in different
-        # documents (values). Now, 'c' is included, and values are lists
-        # of documents, so each word has only one key in the index. 
-        # However, not fully tested, so I'm loathe to kick out the original
-        # idea of appending d's to a list D[] for now.  
-        # Plus, it should eventually change to have a limit of mail IDs, so
-        # a single term will show up multiple times, each key pointing to 
-        # some number of document IDs.
-
-        # Find doc id list at that key in the index
-        d = new_get(index, k1, c).decode()
-        d_.append(d)
-
-        if not d:
-            print("get() returned None!")
-            
-        i += 1
-
+    for i in range(len(cluster_id)):
+        index = dbm.open("indexes/"+cluster_id[i]+"_index_"+id_num, "r")
+        print("searching in file: ", "indexes/"+cluster_id[i]+"_index_"+id_num)
+        
+        seg_ids = index[query[i]].decode('latin1')
+        results.append(seg_ids)
+        i+=0
+        
     # 'd' represents an encrypted id number for a message (in the 
     # simple case, just the message's name).
 
     # Go through list of d's in which the search query was found and
     # dec() each and add to list of id's (M).
     # Send those messages are found to the client
-    return ({"results":d_})
+    return ({"results":results})
 
 
 # TODO: Separate method for sending back files?  
@@ -246,16 +199,6 @@ def search_doc():
     buf.append(out_time)
     return jsonify(results=buf)
 
-
-# Use k1 (hashed search term) and c (num of files it's in) to get key, and 
-# then value of index entry.
-def new_get(index, k1, c):
-    try:
-        F = PRF(k1, c)
-        d = index[F]
-    except:
-        d = None
-    return d
 
 
 # Decrypt doc ID using k2

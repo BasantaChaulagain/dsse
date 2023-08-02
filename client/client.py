@@ -15,6 +15,7 @@ import inspect
 import sys
 import yaml
 import socket
+from time import time
 
 current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parent_dir = os.path.dirname(current_dir)
@@ -68,8 +69,10 @@ def main():
         if (DEBUG):
            print(("Searching remote index for word(s): '%s'" 
                   % args.search[0]))
+        start = time()
         res = sse.search(args.search[0], args.search[1], args.search[2])
-        print(res)
+        # print(res)
+        print(args.search[0], res.count('\n')-3, time()-start)
 
     elif args.inspect_index:
         if (DEBUG): print("Inspecting the index")

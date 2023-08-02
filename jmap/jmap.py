@@ -115,7 +115,6 @@ def pack_search_doc(data):
     return json.dumps([SEARCH_DOC_METHOD, {"query": data}])
     
 def pack_search(data, id_num, cluster_id):
-    id_num = json.dumps(id_num)
     cluster_id = json.dumps(cluster_id)
     return json.dumps([SEARCH_METHOD, {"query": data}, id_num, cluster_id])
 
@@ -159,7 +158,7 @@ def unpack_search(data):
         return -1
 
     method = data[0]
-    id_num = json.loads(data[2])
+    id_num = data[2]
     cluster_id = json.loads(data[3])
 
     # Limit scope to args (data[1])
