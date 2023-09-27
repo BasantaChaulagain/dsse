@@ -38,7 +38,7 @@ from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto import Random
-from datetime import datetime
+from datetime import datetime, timedelta
 import bcrypt
 import binascii
 import string
@@ -192,7 +192,6 @@ class SSE_Client():
         
         
     def encryptSegment(self, infile, outfile):
-
         # read in infile (opened file descriptor)
         buf = infile.read()
         if buf == '': 
@@ -315,6 +314,8 @@ class SSE_Client():
               .format(encode_ts-begin_ts, update_idx_ts-encode_ts, encrypt_idx_ts-update_idx_ts, encrypt_ts-encrypt_idx_ts))
         print("Encoding: {}\nEncrypting: {}\nTotal: {}".format(update_idx_ts-begin_ts, encrypt_ts-update_idx_ts, encrypt_ts-begin_ts))
 
+        for f in os.listdir("enc/"):
+            os.remove(os.path.join("enc/", f))
 
     def update_index(self, lookup_table):
         vdict = lookup_table[1]
@@ -388,29 +389,15 @@ class SSE_Client():
         
         schema_id = get_schema_id(word)
         cluster_ids = get_cluster_id(word, schema_id)
+        # print("cluster_ids:", cluster_ids, schema_id)
         
         k1 = self.PRF(self.k, ("1" + word)).encode('latin1', 'ignore')
         k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore') 
         
         for cid in cluster_ids:
-            index_file = "indexes/"+cid+"_index_"+schema_id
-            if (os.path.exists(index_file)):
-                index = dbm.open(index_file, "r")
-            else:
-                return_result += "Search keyword not found\n"
-                return return_result
-
-            try:
-                ind_exists = index[word]
-            except:
-                ind_exists = None
-                
-            # Search for the word only if it exists in the client index.
-            if ind_exists:
-                hashed_word = self.PRF(k1, word)
-                L.append(hashed_word)
+            hashed_word = self.PRF(k1, word)
+            L.append(hashed_word)
                
-        
         message = jmap.pack(SEARCH, L, schema_id, cluster_ids)
         # Send data and unpack results.
         ret_data = self.send(SEARCH, message)
@@ -427,6 +414,8 @@ class SSE_Client():
             for msg in m_str.split(DELIMETER):
                 if msg not in segments_d:
                     segments_d.append(str(msg))
+        
+        # print("segments_d: ", segments_d)
                 
         cur = self.db.cursor()
         if search_type == 'f':
@@ -480,6 +469,7 @@ class SSE_Client():
         
         return_result += "metainfo: %s\n" % time()
         return_result += "%s" % decoded_message
+        # print(decoded_message)
         return(return_result)
 
     def PRF(self, k, data):

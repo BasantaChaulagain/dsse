@@ -135,6 +135,7 @@ def update():
 
 @app.route('/search', methods=['POST'])
 def search():
+    # print("in search")
     in_time = time.time()
     if not request.json:
         return jsonify(results='Error: not json')

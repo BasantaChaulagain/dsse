@@ -123,10 +123,9 @@ class FileHandler():
 
 
     def encode_logs(self):
-        segment_count = 0
-        last_cluster_id = int(config_["CONF"]["last_cluster_id"])
+        segment_count = int(config_["CONF"]["last_segment_id"])
         for segment in self.segments:
-            cluster_id = last_cluster_id + int(segment_count/NUM_OF_SEGMENTS)
+            cluster_id = int(segment_count/NUM_OF_SEGMENTS)
             segment_count+=1
             print("encoding the segment {}: {}".format(segment_count, segment))
 
@@ -145,8 +144,7 @@ class FileHandler():
             self.insert_to_metadata_db(segment, "c"+str(cluster_id))
 
         # write last_cluster_id to conf file after processing all the segments
-        last_cluster_id = cluster_id + 1
-        config_["CONF"]["last_cluster_id"] = str(last_cluster_id)
+        config_["CONF"]["last_segment_id"] = str(segment_count)
         with open('config.ini', 'w') as conf:
             config_.write(conf)
         

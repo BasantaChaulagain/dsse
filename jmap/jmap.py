@@ -115,6 +115,7 @@ def pack_search_doc(data):
     return json.dumps([SEARCH_DOC_METHOD, {"query": data}])
     
 def pack_search(data, id_num, cluster_id):
+    # print("packing search")
     cluster_id = json.dumps(cluster_id)
     return json.dumps([SEARCH_METHOD, {"query": data}, id_num, cluster_id])
 
