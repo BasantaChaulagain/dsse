@@ -151,25 +151,23 @@ class LogHandler:
             # if var not in any values in vdict_id, add to the dictionary, else update segment id and count.
             var_id = self.get_variable_id(var, vdict_id)
             if not var_id:
-                self.vdict[self.cid][schema_id][str(size_vdict_id)] = [var, 1, [segment]]
+                self.vdict[self.cid][schema_id][str(size_vdict_id)] = [var, [segment]]
             else:
-                segment_list = self.vdict[self.cid][schema_id][var_id][2]
+                segment_list = self.vdict[self.cid][schema_id][var_id][1]
                 if segment not in segment_list:
                     segment_list.append(segment)
-                self.vdict[self.cid][schema_id][var_id][1] += 1       # increment count by 1
-
+                
         
     def write_to_ltdict(self, segment):
         logtype_id = self.get_log_type_id(self.lt_string)
         # if log_type_id is not present, add the ltstring, else just update the segment id and count.
         if not logtype_id:
             size_ltdict = len(self.ltdict[self.cid])
-            self.ltdict[self.cid][str(size_ltdict)] = [self.lt_string, 1, [segment]]
+            self.ltdict[self.cid][str(size_ltdict)] = [self.lt_string, [segment]]
         else:
-            segment_list = self.ltdict[self.cid][logtype_id][2]
+            segment_list = self.ltdict[self.cid][logtype_id][1]
             if segment not in segment_list:
                 segment_list.append(segment)
-            self.ltdict[self.cid][logtype_id][1] += 1              # increment count by 1
         
         
     def get_variable_ids(self):

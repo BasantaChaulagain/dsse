@@ -216,16 +216,16 @@ void bt_syscall_handler_(char * buf, double ts, double* backtrack_ts, int* ret_p
 void table_scan(int user_pid, long user_inode){
 	#ifdef GET_STATS
 		int count_call_to_server = 0;
-		chrono::duration<double> runtime[1000] = {};
-		int lines_in_buf[1000];
-		int total_logs[1000];
+		chrono::duration<double> runtime[10000] = {};
+		int lines_in_buf[10000];
+		int total_logs[10000];
 	#endif
 	
 	int max_log_len = 500;
 	char* buf = (char*) malloc((200000*max_log_len) * sizeof(char));
 	// char buf[16000][500];
 	// int eid_list[10000], eid_index=0;
-	long keywords[1000] = {0};
+	long keywords[10000] = {0};
 	string next_keyword;
 	int i, k, start_index, stop_index = 0, first_iteration = 1;
 	int buf_add_index, keyword_add_index, keyword_search_index;
@@ -446,8 +446,16 @@ void table_scan(int user_pid, long user_inode){
 	#ifdef GET_STATS
 		printf("\nTotal calls to server: %d\n", count_call_to_server);
 		printf("\nkeyword\t#total_logs\t#relevant_logs\truntime\n");
-		for (k=0; k<count_call_to_server; k++)
+		int total_logs_ = 0;
+		int total_relevant_logs = 0;
+		for (k=0; k<count_call_to_server; k++){
 			printf("%ld\t%d\t%d\t%lf\n", keywords[k], total_logs[k], lines_in_buf[k], runtime[k].count());
+			total_logs_ += total_logs[k];
+			total_relevant_logs += lines_in_buf[k];
+		}
+		// total logs is the number of logs containing a certain keyword
+		// total relevant logs is the number of logs that is useful for analysis
+		printf("\nTotal logs: %d\nTotal relevant logs: %d\n", total_logs_, total_relevant_logs);
 	#endif
 }
 
