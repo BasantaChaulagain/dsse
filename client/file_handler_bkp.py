@@ -25,14 +25,13 @@ config_.read("config.ini")
 
 NUM_OF_LOGS = int(config_["CONF"]["num_of_logs"])
 NUM_OF_SEGMENTS = int(config_["CONF"]["num_of_segments"])
-NUM_OF_CLUSTERS = int(config_["CONF"]["num_of_clusters"])
 
 class FileHandler():
     def __init__(self, file):
         self.file_to_handle = file
         self.segments = []
         self.db = sqlite3.connect('metadata')
-        self.db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, clustergroup_id text, ts_start real, ts_end real)''')
+        self.db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, ts_start real, ts_end real)''')
         if self.db == None:
             print("Error while opening database")
 
@@ -79,28 +78,28 @@ class FileHandler():
         return (ts_start, ts_end)
 
 
-    def insert_to_metadata_db(self, segment, cluster_id, clustergroup_id):
+    def insert_to_metadata_db(self, segment, cluster_id):
         file_id = self.file_to_handle.split('/')[1]
         ts_start, ts_end = self.get_timestamps_from_segment(segment)
         segment = segment.split('/')[1]
-        self.db.execute('''INSERT INTO SEGMENT_INFO (file_id, segment_id, cluster_id, clustergroup_id, ts_start, ts_end) VALUES (?, ?, ?, ?, ?, ?)''',(file_id, segment, cluster_id, clustergroup_id, ts_start, ts_end))
+        self.db.execute('''INSERT INTO SEGMENT_INFO (file_id, segment_id, cluster_id, ts_start, ts_end) VALUES (?, ?, ?, ?, ?)''',(file_id, segment, cluster_id, ts_start, ts_end))
         self.db.commit()
 
 
-    def get_lookup_table(self, cg_id):
+    def get_lookup_table(self):
         try:
-            with open('ltdict/ltdict_cg{}.json'.format(cg_id), 'r') as f:
+            with open('ltdict.json', 'r') as f:
                 ltdict = json.load(f)
-            with open('vdict/vdict_cg{}.json'.format(cg_id), 'r') as f:
+            with open('vdict.json', 'r') as f:
                 vdict = json.load(f)
         
         except FileNotFoundError:
-            if not os.path.exists('ltdict/ltdict_cg{}.json'.format(cg_id)):
-                with open('ltdict/ltdict_cg{}.json'.format(cg_id), 'w+') as f:
+            if not os.path.exists('ltdict.json'):
+                with open('ltdict.json', 'w+') as f:
                     ltdict = {}
                     json.dump(ltdict, f)   
-            if not os.path.exists('vdict/vdict_cg{}.json'.format(cg_id)):
-                with open('vdict/vdict_cg{}.json'.format(cg_id), 'w+') as f:
+            if not os.path.exists('vdict.json'):
+                with open('vdict.json', 'w+') as f:
                     vdict = {}
                     json.dump(vdict, f)
                     
@@ -108,15 +107,14 @@ class FileHandler():
         return lookup_table
     
     
-    def set_lookup_table(self, lookup_table, cg_id):
+    def set_lookup_table(self, lookup_table):
         # lookup_table in the format [ltdict, vdict]
-        with open('ltdict/ltdict_cg{}.json'.format(cg_id), 'w+') as f:
+        with open('ltdict.json', 'w+') as f:
             ltdict = lookup_table[0]
             json.dump(ltdict, f)
-        with open('vdict/vdict_cg{}.json'.format(cg_id), 'w+') as f:
+        with open('vdict.json', 'w+') as f:
             vdict = lookup_table[1]
             json.dump(vdict, f)
-            
             
     def write_to_file(self, content, segment):
         with open(segment, 'w+') as f:
@@ -127,12 +125,11 @@ class FileHandler():
         segment_count = int(config_["CONF"]["last_segment_id"])
         for segment in self.segments:
             cluster_id = int(segment_count/NUM_OF_SEGMENTS)
-            clustergrp_id = int(cluster_id/NUM_OF_CLUSTERS)
             segment_count+=1
             
             if encode:
                 print("encoding the segment {}: {}".format(segment_count, segment))
-                lookup_table = self.get_lookup_table(clustergrp_id)      # [{},{}] initially
+                lookup_table = self.get_lookup_table()          # [{},{}] initially
                 encoded_content = ""
                 with open(segment, 'r') as seg:
                     for log in seg:
@@ -141,10 +138,10 @@ class FileHandler():
                         encoded_message = l.encode(log, segment_id)
                         encoded_content = encoded_content + "\n" + encoded_message
                         lookup_table = l.get_updated_lookup_table()
-                self.set_lookup_table(lookup_table, clustergrp_id)
+                self.set_lookup_table(lookup_table)
         
                 self.write_to_file(encoded_content, segment)
-                self.insert_to_metadata_db(segment, "c"+str(cluster_id), "cg"+str(clustergrp_id))
+                self.insert_to_metadata_db(segment, "c"+str(cluster_id))
             
         # write last_cluster_id to conf file after processing all the segments
         config_["CONF"]["last_segment_id"] = str(segment_count)

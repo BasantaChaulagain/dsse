@@ -11,6 +11,8 @@
 // #define DEBUG 1
 #define GET_STATS 1
 
+#define EVENT_ID_SIZE 9
+
 #ifdef DEBUGBT
 		#define DEBUGANY
 		#define debugbt(M, ...) fprintf(stderr, "DEBUG %s:%d: " M, __FILE__, __LINE__, ##__VA_ARGS__)

@@ -226,13 +226,20 @@ void table_scan(int user_pid, long user_inode){
 	// char buf[16000][500];
 	// int eid_list[10000], eid_index=0;
 	long keywords[10000] = {0};
+	char* keywords_type[10000] = {"\0"};
 	string next_keyword;
 	int i, k, start_index, stop_index = 0, first_iteration = 1;
 	int buf_add_index, keyword_add_index, keyword_search_index;
 	buf_add_index = keyword_add_index = keyword_search_index = 0;
 	
-	if (user_pid>0) keywords[0] = long(user_pid);
-	else if (user_inode>0) keywords[0] = user_inode;
+	if (user_pid>0) {
+		keywords[0] = long(user_pid);
+		keywords_type[0] = "p";
+	}
+	else if (user_inode>0) {
+		keywords[0] = user_inode;
+		keywords_type[0] = "f";
+	}
 
 	PyObject *pName, *pModule, *pFunc, *pArg, *pValue;
 	Py_Initialize();
@@ -262,6 +269,8 @@ void table_scan(int user_pid, long user_inode){
 			printf("Searching for keyword: %s\n", next_keyword.c_str());
 
 			long nxt_kw = keywords[keyword_search_index-1];
+			char* nxt_kw_type = keywords_type[keyword_search_index-1];
+			// printf("\n%ld\t%s\t%s\n", keyword_search_index-1, next_keyword.c_str(), nxt_kw_type);
 			double bt_ts_;
 			timestamp_table_t *tt_;
 			HASH_FIND(hh, timestamp_table, &nxt_kw, sizeof(long), tt_);
@@ -270,14 +279,17 @@ void table_scan(int user_pid, long user_inode){
 			else
 				bt_ts_ = backtrack_ts;
 
-			pArg = PyTuple_New(3);
+			pArg = PyTuple_New(4);
 			pValue = PyUnicode_FromString(next_keyword.c_str());
 			PyTuple_SetItem(pArg, 0, pValue);
 			string backtrack_ts_str = to_string(bt_ts_);
+			// printf("\nbt_ts: %s\n",backtrack_ts_str.c_str());
 			pValue = PyUnicode_FromString(backtrack_ts_str.c_str());
 			PyTuple_SetItem(pArg, 1, pValue);
 			pValue = PyUnicode_FromString(search_type);
 			PyTuple_SetItem(pArg, 2, pValue);
+			pValue = PyUnicode_FromString(nxt_kw_type);
+			PyTuple_SetItem(pArg, 3, pValue);
 			#ifdef GET_STATS
 				auto loop_start_ts = chrono::system_clock::now();
 				int total_log_lines = 0;
@@ -309,6 +321,7 @@ void table_scan(int user_pid, long user_inode){
 					total_log_lines++;
 				#endif
 				if (strtol(line, NULL, 10) == 0){
+					// printf("%s", line);
 					// #ifdef GET_STATS
 					// if (strncmp(line, "metainfo:", 9) == 0){
 					// 	char *ptr = strtok(line, ":");
@@ -369,7 +382,7 @@ void table_scan(int user_pid, long user_inode){
 					char temp[500];
 					strcpy(temp, buf+k*max_log_len);
 					long eid = strtol(temp, NULL, 10);
-					double ts = stod(temp+11);
+					double ts = stod(temp+EVENT_ID_SIZE+2);
 
 					if (first_iteration){
 						long kw = keywords[keyword_search_index-1];
@@ -415,10 +428,14 @@ void table_scan(int user_pid, long user_inode){
 								}
 							}
 							debugtrack("pid_exist %d, inode_exist %d\n", pid_exist, inode_exist);
-							if (pid_exist == 0 && ret_pid > 0)
+							if (pid_exist == 0 && ret_pid > 0){
 								keywords[++keyword_add_index] = long(ret_pid);
-							if (inode_exist == 0 && ret_inode > 0)
+								keywords_type[keyword_add_index] = "p";
+							}
+							if (inode_exist == 0 && ret_inode > 0){
 								keywords[++keyword_add_index] = ret_inode;
+								keywords_type[keyword_add_index] = "f";
+							}
 						}
 						// add a line to the new index only if the prev log is tainted, else replace it.
 						if (flag == 0)
@@ -444,7 +461,6 @@ void table_scan(int user_pid, long user_inode){
 		return;
 
 	#ifdef GET_STATS
-		printf("\nTotal calls to server: %d\n", count_call_to_server);
 		printf("\nkeyword\t#total_logs\t#relevant_logs\truntime\n");
 		int total_logs_ = 0;
 		int total_relevant_logs = 0;
@@ -455,6 +471,7 @@ void table_scan(int user_pid, long user_inode){
 		}
 		// total logs is the number of logs containing a certain keyword
 		// total relevant logs is the number of logs that is useful for analysis
+		printf("\nTotal calls to server: %d\n", count_call_to_server);
 		printf("\nTotal logs: %d\nTotal relevant logs: %d\n", total_logs_, total_relevant_logs);
 	#endif
 }
@@ -560,7 +577,7 @@ int main(int argc, char** argv)
 				printf("calling table scan.\n");
 				table_scan(user_pid, user_inode);
 		}
-				
+		
 		fp = fopen("AUDIT_bt.gv", "w");
 
 		emit_graph(fp);
