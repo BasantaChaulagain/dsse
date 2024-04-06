@@ -22,18 +22,14 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 from client.sse_client import CSV_INPUT, SSE_Client
 
-# CONFIG_FILE = "../config.yml"
-# config = {}
-# with open(CONFIG_FILE, 'r') as ymlfile:
-#     config = yaml.safe_load(ymlfile)
 
 DEBUG = 1
 CSV_INPUT = 1
 # CSV_INPUT = config["GLOBAL"]["CSV_INPUT"]
 
-def sse_search(keyword, base_ts, type):
+def sse_search(keyword, base_ts, search_type, query_type):
     sse = SSE_Client()
-    return(sse.search(keyword, base_ts, type))
+    return(sse.search(keyword, base_ts, search_type, query_type))
 
 def main():
     # Set-up a command-line argument parser
@@ -51,6 +47,7 @@ def main():
                         nargs=1)
     parser.add_argument('-i', '--inspect_index', dest='inspect_index')
     parser.add_argument('-c', '--csv_input', dest='csv_input')
+    parser.add_argument('-g', '--search_segments', dest='search_segments')
     parser.add_argument('-t', '--test_http', dest='test_http')
     args = parser.parse_args()
  
@@ -70,8 +67,7 @@ def main():
            print(("Searching remote index for word(s): '%s'" 
                   % args.search[0]))
         start = time()
-        res = sse.search(args.search[0], args.search[1], args.search[2])
-        # print(res)
+        res = sse.search(args.search[0], args.search[1], args.search[2], args.search[3])
         print(args.search[0], res.count('\n')-3, time()-start)
 
     elif args.inspect_index:
@@ -83,6 +79,22 @@ def main():
             for k in index_.keys():
                 print("k:%s\tv:%s" % (k, index_[k]))
             index_.close()
+
+
+    elif args.search_segments:
+        if args.search_segments == '0':
+            segments = os.listdir('../server/enc')
+            cluster_num = len(os.listdir('ltdict'))
+            cluster_ids = []
+            for c in range(cluster_num):
+                cluster_ids.append('c'+str(c))
+            
+        if args.search_segments == '1':
+            segments = ['ifXCWsf97WigL8gZdZ56aQ', 'YyzrNYdqmocjRRUT6tJQYJ', 'KSCC8jUpG3x6WbqzqTjcYs', 'kzRFHhpo32KyDk7bfDxcjC', 'SiGGRnwVfWA7HiF7CYqUCM', 'goQwBRRf5YKQQQQA9VpADb', 'Kos9XKBBG6WW8HGNVzHSPp', 'Z3g4MBnuiTQgqUQBzoPC8v', 'QwVo2WNneuQoPcj5Wh2XEj', 'ekBi7d8Hr9eVNTxoBEkU9D', 'gDa6zyNx8Hj4KFvMCCfHL2', 'KkNkt3UDcnLaSnoHgoHSoC', 'U6yzswWdmRUhGvbADaoy6d', 'LKjs9zpsLvNinyAaJcR6NR', 'MwDwXBpK8kboCCmGdXhKAw', '8ZLrST7z64s3BZakzaAcTz','FwedpsXuWoHgoQtqrzfjFc', 'L4ZBjthu4TFskXvR2UH4ru', 'm2YnYVfjLAS9JagmwTmdK6', 'BQgsQprFDwkHAnbVV9okFv', 'hRbjuJLepwKy9yJecyLb4d']
+            cluster_ids = ['c43', 'c44', 'c45', 'c46', 'c47', 'c49']
+        
+        sse.search_segments(segments, cluster_ids)
+
 
     elif args.test_http:
         url = "http://localhost:5000/search"

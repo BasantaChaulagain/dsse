@@ -38,7 +38,6 @@ from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto import Random
-from configparser import ConfigParser
 from datetime import datetime, timedelta
 import bcrypt
 import binascii
@@ -71,11 +70,6 @@ ADD = "add"
 ENCODE=True
 CSV_INPUT = 1
 
-config_ = ConfigParser()
-config_.read("config.ini")
-dsse_enabled = int(config_["GLOBAL"]["DSSE"])
-
-
 # Default url is localhost, and the port 5000 is set by Flask on the server
 DEFAULT_URL = "http://127.0.0.1:5000/"
 
@@ -97,56 +91,32 @@ def get_schema_id(query_type):
         return None
 
 
-def get_cgid_from_segments(cur, segments):
-    cgids = []
-    for seg in segments:
-        cur.execute('''SELECT clustergroup_id FROM SEGMENT_INFO WHERE segment_id=?''', (seg, ))
-        cgid = cur.fetchone()[0]
-        if cgid not in cgids:
-            cgids.append(cgid)
-    return cgids
-
-
-def get_lookup_table(cur, segments):
-    cg_ids = get_cgid_from_segments(cur, segments)
-    vdict = {}
-    ltdict = {}
-    for cg_id in cg_ids:
-        try:
-            with open('ltdict/ltdict_{}.json'.format(cg_id), 'r') as f:
-                content = json.load(f)
-                ltdict = {**ltdict, **content}
-            with open('vdict/vdict_{}.json'.format(cg_id), 'r') as f:
-                content = json.load(f)
-                vdict = {**vdict, **content}
-        
-        except FileNotFoundError:
-            pass
-                
-    lookup_table = [ltdict, vdict]
+def get_lookup_table():
+    try:
+        with open('ltdict.json', 'r') as f:
+            ltdict = json.load(f)
+        with open('vdict.json', 'r') as f:
+            vdict = json.load(f)
+        lookup_table = [ltdict, vdict]
+    except:
+        lookup_table = [{},{}]
     return lookup_table
 
 
 def get_segment_cluster_info(word, schema_ids):
     segment_ids = []
     cluster_ids = []
-    vdict = {}
     try:
-        for file in os.listdir('vdict'):
-            with open('vdict/'+file, 'r') as f:
-                content = json.load(f)
-                vdict.update(content)
-                # vdict = {**vdict, **content}
-        # print(json.dumps(vdict, indent=4))
+        with open('vdict.json', 'r') as f:
+            vdict = json.load(f)
         
         for cid, value in vdict.items():
             for schema_id in schema_ids:
-                if value.get(schema_id) is not None:
-                    for each in value.get(schema_id).values():
-                        if each[0] == word:
-                            segment_ids.extend(each[1])
-                            if cid not in cluster_ids:
-                                cluster_ids.append(cid)
+                for each in value.get(schema_id).values():
+                    if each[0] == word:
+                        segment_ids.extend(each[1])
+                        if cid not in cluster_ids:
+                            cluster_ids.append(cid)
         return (segment_ids, cluster_ids)
     except:
         return (segment_ids, cluster_ids)
@@ -159,8 +129,16 @@ def get_segment_cluster_info(word, schema_ids):
 class SSE_Client():
 
     def __init__(self):
+
+        # TODO: placeholder for password. Will eventually take
+        # as an arg of some sort
         self.password = b"password"
 
+        # TODO: need to sort out use of salt. Previously, salt was
+        # randomly generated in initKeys, but the resulting pass-
+        # words k & kPrime were different on each execution, and 
+        # decryption was impossible. Hardcoding salt makes dectyption
+        # possible but may be a bad short cut
         self.iv = None
         self.salt = b"$2b$12$ddTuco8zWXF2.kTqtOZa9O"
 
@@ -195,6 +173,7 @@ class SSE_Client():
         # Research uses both, but not sure the difference
         return (hashed, hashed)
 
+
     def initCipher(self):
         # initialize Cipher, using kPrime
         # return new Cipher object
@@ -211,7 +190,7 @@ class SSE_Client():
 
     def ensure_metadata_db(self):
         db = sqlite3.connect('metadata')
-        db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, clustergroup_id text, ts_start real, ts_end real)''')
+        db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, ts_start real, ts_end real)''')
         if db == None:
             print("Error while opening database")
         return db
@@ -262,6 +241,7 @@ class SSE_Client():
 
     def update(self, filename):
         begin_ts = datetime.now()
+        print("update started")
         
         file = FileHandler(filename)
         segments = file.split_file()
@@ -283,7 +263,7 @@ class SSE_Client():
             message = jmap.pack(ADD, data, "1", outfilename_)
 
             # Then send message
-            r = self.send(ADD, message, outfilename)
+            r = self.send(ADD, message, outfilename)        
             if(type(r) != dict):
                 r = r.json()
             results = r['results']
@@ -305,17 +285,13 @@ class SSE_Client():
             os.remove(os.path.join("enc/", f))
 
 
-    def search(self, query, base_ts=0, search_type='', query_type=None):
-        # print(query, base_ts, search_type, query_type)
+    def search(self, query, base_ts=0, search_type='', query_type=''):
         return_result = ""
         return_result += "metainfo: %s\n" % time()
-        begin_ts = time()
-        
+
         word = query.lower()
         schema_id = get_schema_id(query_type)
         (segments_ids, cluster_ids) = get_segment_cluster_info(word, schema_id)
-        print("segs = ", segments_ids)
-        print("clus = ", cluster_ids)
         
         cur = self.db.cursor()
         if search_type == 'f':
@@ -338,14 +314,12 @@ class SSE_Client():
                 base_ts = cur.fetchone()[0]
             cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_end<=?''', (base_ts, ))
             relevant_segments = [list[0] for list in cur.fetchall()]
+            # print("rel:", relevant_segments)
         
-        # print(relevant_segments)
         return_segments = []
         for each in segments_ids:
             if each in relevant_segments:
                 return_segments.append(each)
-        index_ts = time()
-        print ("index time: ", index_ts-begin_ts)
         
         message = jmap.pack(SEARCH_DOC, return_segments)
         ret_data = self.send(SEARCH_DOC, message)
@@ -360,16 +334,14 @@ class SSE_Client():
             return return_result
 
         decoded_message = ''''''
-        lookup_table = get_lookup_table(cur, return_segments)
-        # print(lookup_table)
         for i in results:
             decrypted = self.decryptSegment(i.encode('latin1'), )
+            lookup_table = get_lookup_table()
             decrypted_ = decrypted.split('\n')[:-1]
             for cid in cluster_ids:
                 l = LogHandler(lookup_table, cid)
                 for each in decrypted_:
                     decoded = l.decode(each)
-                    # print(decoded)
                     if re.search(r'\b{}\b'.format(word), decoded):
                         decoded_message += (decoded+'\n')
         
@@ -378,29 +350,6 @@ class SSE_Client():
         # print(return_result)
         return(return_result)
 
-
-    def search_segments(self, segments, cluster_ids):
-        message = jmap.pack(SEARCH_DOC, segments)
-        ret_data = self.send(SEARCH_DOC, message)
-        cur = self.db.cursor()
-        if(type(ret_data) != dict):
-            ret_data = ret_data.json()
-        results = ret_data['results']
-
-        begin_ts = time()
-        decoded_message = ''''''
-        lookup_table = get_lookup_table(cur, segments)
-        for i in results:
-            decrypted = self.decryptSegment(i.encode('latin1'), )
-            decrypted_ = decrypted.split('\n')[:-1]
-            for cid in cluster_ids:
-                l = LogHandler(lookup_table, cid)
-                for each in decrypted_:
-                    decoded = l.decode(each)                    
-                    decoded_message += (decoded+'\n')
-        end_ts = time()
-        print("decrypt-decode: ", end_ts-begin_ts)
-        
 
     def PRF(self, k, data):
         if type(data) == str:
@@ -459,6 +408,4 @@ class SSE_Client():
             server_in_time = result_json['results'].pop()
             # print("client-to-server:", float(server_in_time)-client_out_time)  # n/w delay when sending
             # print("server-to-client:", client_in_time-float(server_out_time))  # n/w delay when receiving
-            # print("server-processing-time:", float(server_out_time)-float(server_in_time)) # server processing time
-            print("nw-time:", client_in_time-client_out_time) # total network time
         return (result_json)

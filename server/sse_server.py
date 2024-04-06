@@ -135,7 +135,7 @@ def update():
 
 @app.route('/search', methods=['POST'])
 def search():
-    # print("in search")
+    print("in search")
     in_time = time.time()
     if not request.json:
         return jsonify(results='Error: not json')
@@ -167,14 +167,9 @@ def search():
     # Go through list of d's in which the search query was found and
     # dec() each and add to list of id's (M).
     # Send those messages are found to the client
+    print(results)
     return ({"results":results})
 
-
-# TODO: Separate method for sending back files?  
-# Should it be whole files or just msg ids?
-# Currently sends msgs back in their entirety
-
-# TODO: Need to send back id_num and check at client side
 
 @app.route('/search_doc', methods=['POST'])
 def search_doc():
@@ -183,12 +178,13 @@ def search_doc():
         return jsonify(results='Error: not json')
 
     (method, query) = jmap.unpack(SEARCH_DOC, request.get_json())
-
+    print(query)
+    
     if method != SEARCH_DOC_METHOD:
         return jsonify(results='Error: Wrong Method for url')
         
     buf = []
-        
+    
     for seg_id in query:
         path = os.path.join(app.config['UPLOAD_FOLDER'], seg_id)
         fd = open(path, "rb")
@@ -199,7 +195,6 @@ def search_doc():
     buf.append(in_time)
     buf.append(out_time)
     return jsonify(results=buf)
-
 
 
 # Decrypt doc ID using k2
