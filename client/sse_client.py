@@ -38,6 +38,7 @@ from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto import Random
+from configparser import ConfigParser
 from datetime import datetime, timedelta
 import bcrypt
 import binascii
@@ -69,6 +70,11 @@ ADD = "add"
 
 ENCODE=True
 CSV_INPUT = 1
+
+config_ = ConfigParser()
+config_.read("config.ini")
+dsse_enabled = int(config_["GLOBAL"]["DSSE"])
+
 
 # Default url is localhost, and the port 5000 is set by Flask on the server
 DEFAULT_URL = "http://127.0.0.1:5000/"
