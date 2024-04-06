@@ -1,0 +1,17 @@
+echo '19'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '18'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '17'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '16'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '15'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '14'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '13'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '12'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '10'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '9'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '8'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '7'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '6'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '5'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '4'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '3'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+echo '1'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
