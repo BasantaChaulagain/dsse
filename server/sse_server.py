@@ -163,6 +163,7 @@ def search():
         return jsonify(results='Error: not json')
 
     (method, query, id_num, cluster_id) = jmap.unpack(SEARCH, request.get_json())
+    print(query, id_num, cluster_id)
 
     if method != SEARCH_METHOD:
         return jsonify(results='Error: Wrong Method for url')

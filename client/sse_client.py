@@ -127,7 +127,6 @@ def get_lookup_table(cur, segments):
 
 
 def get_cluster_id(word, schema_ids):
-    segment_ids = []
     cluster_ids = []
     vdict = {}
     try:
@@ -136,19 +135,17 @@ def get_cluster_id(word, schema_ids):
                 content = json.load(f)
                 vdict.update(content)
                 # vdict = {**vdict, **content}
-        # print(json.dumps(vdict, indent=4))
         
         for cid, value in vdict.items():
             for schema_id in schema_ids:
                 if value.get(schema_id) is not None:
                     for each in value.get(schema_id).values():
                         if each[0] == word:
-                            segment_ids.extend(each[1])
                             if cid not in cluster_ids:
                                 cluster_ids.append(cid)
-        return (segment_ids, cluster_ids)
+        return (cluster_ids)
     except:
-        return (segment_ids, cluster_ids)
+        return (cluster_ids)
 
 
 def get_segment_cluster_info(word, schema_ids):
@@ -174,6 +171,7 @@ def get_segment_cluster_info(word, schema_ids):
         return (segment_ids, cluster_ids)
     except:
         return (segment_ids, cluster_ids)
+
 
 ########
 #
@@ -349,55 +347,19 @@ class SSE_Client():
             file_list = [[key, value] for key, value in merged_f_dict.items()]
             # print(file_list)
             
-            # index = dbm.open("indexes/"+cluster_id+"_p_index", "c")
-            # index_IDs = dbm.open("indexes/"+cluster_id+"_index_IDs_"+key, "c")
-
-            # vdict_items = list(integer_dict.values())
-            # for item in vdict_items:
-            #     # sample item: ['DAEMON_START', 2, ['bYvf8pWtahZSNwiVMs7M8g']]
-            #     if item[0] not in index.keys():
-            #         index[item[0]] = str(item[1])
-            #     else:
-            #         if item[1] != int(index.get(item[0])):
-            #             index[item[0]] = str(item[1])
-
-            #     if item[0] not in index_IDs.keys():
-            #         index_IDs[item[0]] = DELIMETER.join(item[2])
-            #     else:
-            #         if int(item[1]) != index.get(item[0]):
-            #             index[item[0]] = DELIMETER.join(item[2])
-            
-            # index.close()
-            # index_IDs.close()
-            
         update_idx_ts = datetime.now()
         
         indexes = []
         index = self.encryptIndex(process_list)
-        print(index)
         indexes.append((index, 'p', cluster_id))
         index = self.encryptIndex(file_list)
-        print(index)
         indexes.append((index, 'f', cluster_id))
         
-        # for k,v in vdict.items():
-        #     cluster_id = k
-        #     key = "9"   # variable schema for integer
-
-        #     ind = "indexes/"+cluster_id+"_index_"+key
-        #     ind_id = "indexes/"+cluster_id+"_index_IDs_"+key
-        #     index = self.encryptIndex(ind, ind_id)
-        #     indexes.append((index, int(key), cluster_id))
-            
         return (indexes, update_idx_ts)
 
 
     def encryptIndex(self, dict_list):
-
-        # This is where the meat of the SSE update routine is implemented
-
         L = []
-       
         # For each word, look through local index to see if it's there. If
         # not, set c = 0, and apply the PRF. Otherwise c == number of 
         # occurences of that word/term/number 
@@ -485,14 +447,40 @@ class SSE_Client():
 
 
     def search(self, query, base_ts=0, search_type='', query_type=None):
-        # print(query, base_ts, search_type, query_type)
         return_result = ""
         return_result += "metainfo: %s\n" % time()
         begin_ts = time()
         
+        L = []
         word = query.lower()
         schema_id = get_schema_id(query_type)
-        (segments_ids, cluster_ids) = get_segment_cluster_info(word, schema_id)
+        if SSE_MODE == 0:
+            (segments_ids, cluster_ids) = get_segment_cluster_info(word, schema_id)
+        else:
+            cluster_ids = get_cluster_id(word, schema_id)
+            print(cluster_ids)
+            
+            k1 = self.PRF(self.k, ("1" + word))
+            L.append((k1))
+            k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore')    
+    
+            message = jmap.pack(SEARCH, L, query_type, cluster_ids)
+            ret_data = self.send(SEARCH, message)
+
+            segments_e = ret_data['results']
+            segments_ids = []
+            
+            for each in segments_e:
+                m_str = ''
+                m = self.dec(k2, each).decode()
+                for x in m:
+                    if x in string.printable:
+                        m_str += x
+                for msg in m_str.split(DELIMETER):
+                    if msg not in segments_ids:
+                        segments_ids.append(str(msg))
+            
+            
         print("segs = ", segments_ids)
         print("clus = ", cluster_ids)
         
