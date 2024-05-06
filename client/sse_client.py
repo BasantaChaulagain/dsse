@@ -73,8 +73,7 @@ CSV_INPUT = 1
 
 config_ = ConfigParser()
 config_.read("config.ini")
-dsse_enabled = int(config_["GLOBAL"]["DSSE"])
-
+SSE_MODE = int(config_["GLOBAL"]["SSE_MODE"])
 
 # Default url is localhost, and the port 5000 is set by Flask on the server
 DEFAULT_URL = "http://127.0.0.1:5000/"
@@ -127,6 +126,31 @@ def get_lookup_table(cur, segments):
     return lookup_table
 
 
+def get_cluster_id(word, schema_ids):
+    segment_ids = []
+    cluster_ids = []
+    vdict = {}
+    try:
+        for file in os.listdir('vdict'):
+            with open('vdict/'+file, 'r') as f:
+                content = json.load(f)
+                vdict.update(content)
+                # vdict = {**vdict, **content}
+        # print(json.dumps(vdict, indent=4))
+        
+        for cid, value in vdict.items():
+            for schema_id in schema_ids:
+                if value.get(schema_id) is not None:
+                    for each in value.get(schema_id).values():
+                        if each[0] == word:
+                            segment_ids.extend(each[1])
+                            if cid not in cluster_ids:
+                                cluster_ids.append(cid)
+        return (segment_ids, cluster_ids)
+    except:
+        return (segment_ids, cluster_ids)
+
+
 def get_segment_cluster_info(word, schema_ids):
     segment_ids = []
     cluster_ids = []
@@ -162,7 +186,8 @@ class SSE_Client():
         self.password = b"password"
 
         self.iv = None
-        self.salt = b"$2b$12$ddTuco8zWXF2.kTqtOZa9O"
+        # self.salt = b"$2b$12$ddTuco8zWXF2.kTqtOZa9O"
+        self.salt = b"$2b$12$fz7BTMuSX.soZ7sOwNqPLu"
 
         # Two keys, generated/Initialized by KDF
         (self.k, self.kPrime) = self.initKeys()
@@ -175,7 +200,6 @@ class SSE_Client():
         self.cipher = self.initCipher()
 
         # Stemming tool (cuts words to their roots/stems)
-        self.stemmer = PorterStemmer()
         self.db = self.ensure_metadata_db()
 
     def initKeys(self):
@@ -260,18 +284,173 @@ class SSE_Client():
             return(tmp.decode('latin1'))
 
 
+    def encryptSegmentID(self, k2, segment_ids):
+
+        # Encrypt doc id (document) with key passed in (k2)
+
+        # set up new cipher using k2 and random iv
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(k2[:16].encode('latin1'), AES.MODE_CBC, iv)
+
+        # pad to mod 16
+        while len(segment_ids)%16 != 0:
+            segment_ids = segment_ids + '\x08'
+
+        encId = iv + cipher.encrypt(segment_ids.encode('latin1'))
+
+        if (DEBUG > 1):
+            print(("New ID for '%s' = %s" % 
+                 (segment_ids, (binascii.hexlify(encId)))))
+
+        return binascii.hexlify(encId)
+
+
+    def update_index(self, vdict):
+        for k, v in vdict.items():
+            print("cluster:", k)
+            cluster_id = k
+            process_dict = list(v.get('5').values())
+            process_dict.extend(list(v.get('6').values()))
+            merged_p_dict = {}
+            for key, value in process_dict:
+                # Create a set to collect unique values
+                unique_values_set = set()
+                if key not in merged_p_dict:
+                    # If the key is not in the merged dictionary, directly add the values
+                    unique_values_set.update(value)
+                else:
+                    # If the key is already in the merged dictionary, add only unique values
+                    existing_values = set(merged_p_dict[key])
+                    unique_values_set.update(existing_values.union(value))
+                # Convert the set back to a list
+                unique_values_list = list(unique_values_set)
+                merged_p_dict[key] = unique_values_list
+
+            process_list = [[key, value] for key, value in merged_p_dict.items()]
+            # print(process_list)
+            
+            file_dict = list(v.get('16').values())
+            if '23' in v.keys():
+                file_dict.extend(list(v.get('23').values()))
+            merged_f_dict = {}
+            for key, value in file_dict:
+                unique_values_set = set()
+                if key not in merged_f_dict:
+                    # If the key is not in the merged dictionary, directly add the values
+                    unique_values_set.update(value)
+                else:
+                    # If the key is already in the merged dictionary, add only unique values
+                    existing_values = set(merged_f_dict[key])
+                    unique_values_set.update(existing_values.union(value))
+                # Convert the set back to a list
+                unique_values_list = list(unique_values_set)
+                merged_f_dict[key] = unique_values_list
+
+            file_list = [[key, value] for key, value in merged_f_dict.items()]
+            # print(file_list)
+            
+            # index = dbm.open("indexes/"+cluster_id+"_p_index", "c")
+            # index_IDs = dbm.open("indexes/"+cluster_id+"_index_IDs_"+key, "c")
+
+            # vdict_items = list(integer_dict.values())
+            # for item in vdict_items:
+            #     # sample item: ['DAEMON_START', 2, ['bYvf8pWtahZSNwiVMs7M8g']]
+            #     if item[0] not in index.keys():
+            #         index[item[0]] = str(item[1])
+            #     else:
+            #         if item[1] != int(index.get(item[0])):
+            #             index[item[0]] = str(item[1])
+
+            #     if item[0] not in index_IDs.keys():
+            #         index_IDs[item[0]] = DELIMETER.join(item[2])
+            #     else:
+            #         if int(item[1]) != index.get(item[0]):
+            #             index[item[0]] = DELIMETER.join(item[2])
+            
+            # index.close()
+            # index_IDs.close()
+            
+        update_idx_ts = datetime.now()
+        
+        indexes = []
+        index = self.encryptIndex(process_list)
+        print(index)
+        indexes.append((index, 'p', cluster_id))
+        index = self.encryptIndex(file_list)
+        print(index)
+        indexes.append((index, 'f', cluster_id))
+        
+        # for k,v in vdict.items():
+        #     cluster_id = k
+        #     key = "9"   # variable schema for integer
+
+        #     ind = "indexes/"+cluster_id+"_index_"+key
+        #     ind_id = "indexes/"+cluster_id+"_index_IDs_"+key
+        #     index = self.encryptIndex(ind, ind_id)
+        #     indexes.append((index, int(key), cluster_id))
+            
+        return (indexes, update_idx_ts)
+
+
+    def encryptIndex(self, dict_list):
+
+        # This is where the meat of the SSE update routine is implemented
+
+        L = []
+       
+        # For each word, look through local index to see if it's there. If
+        # not, set c = 0, and apply the PRF. Otherwise c == number of 
+        # occurences of that word/term/number 
+        if SSE_MODE == 1:
+            for each in dict_list:
+                word = each[0]
+                segment_ids = DELIMETER.join(each[1])
+
+                k1 = self.PRF(self.k, ("1" + word))
+                k2 = self.PRF(self.k, ("2" + word))
+    
+                # Set l as the PRF of k1 (1 || w) and c (num of occur) if parsing the body            
+                l = k1
+                d = self.encryptSegmentID(k2, segment_ids).decode()
+
+                L.append((l, d))
+
+        return L
+
+
     def update(self, filename):
         begin_ts = datetime.now()
         
         file = FileHandler(filename)
         segments = file.split_file()
-        file.encode_logs(ENCODE)        
+        file.encode_logs(ENCODE)
         encode_ts = datetime.now()
+        
+        if SSE_MODE == 1 or SSE_MODE == 2:
+            for each in os.listdir("vdict"):
+                try:
+                    with open("vdict/"+each, 'r') as f:
+                        vdict = json.load(f)
+                except:
+                    vdict = {}
+                (indexes, update_idx_ts) = self.update_index(vdict)
+                
+                for index in indexes:
+                    # ((index, p or f, cluster_id))
+                    message = jmap.pack(UPDATE, index[0], index[1], index[2])
+                    # print(message)
+                    r = self.send(UPDATE, message)
+                    if(type(r) != dict):
+                        r = r.json()
+                    results = r['results']
+                    print("Results of Index UPDATE: " + results)
+                    
+                encrypt_idx_ts = datetime.now()
         
         # Then encrypt msg
         for seg in segments:
             print("Encrypting segment: ", seg)
-            infile = open(seg, "r") 
+            infile = open(seg, "r")
             outfilename_ = seg.split('/')[1]
             outfilename = "enc/" + outfilename_
             outfile = open(outfilename, "wb+")
@@ -375,31 +554,31 @@ class SSE_Client():
         
         return_result += "metainfo: %s\n" % time()
         return_result += "%s" % decoded_message
-        # print(return_result)
+        print(return_result)
         return(return_result)
 
 
-    def search_segments(self, segments, cluster_ids):
-        message = jmap.pack(SEARCH_DOC, segments)
-        ret_data = self.send(SEARCH_DOC, message)
-        cur = self.db.cursor()
-        if(type(ret_data) != dict):
-            ret_data = ret_data.json()
-        results = ret_data['results']
+    # def search_segments(self, segments, cluster_ids):
+    #     message = jmap.pack(SEARCH_DOC, segments)
+    #     ret_data = self.send(SEARCH_DOC, message)
+    #     cur = self.db.cursor()
+    #     if(type(ret_data) != dict):
+    #         ret_data = ret_data.json()
+    #     results = ret_data['results']
 
-        begin_ts = time()
-        decoded_message = ''''''
-        lookup_table = get_lookup_table(cur, segments)
-        for i in results:
-            decrypted = self.decryptSegment(i.encode('latin1'), )
-            decrypted_ = decrypted.split('\n')[:-1]
-            for cid in cluster_ids:
-                l = LogHandler(lookup_table, cid)
-                for each in decrypted_:
-                    decoded = l.decode(each)                    
-                    decoded_message += (decoded+'\n')
-        end_ts = time()
-        print("decrypt-decode: ", end_ts-begin_ts)
+    #     begin_ts = time()
+    #     decoded_message = ''''''
+    #     lookup_table = get_lookup_table(cur, segments)
+    #     for i in results:
+    #         decrypted = self.decryptSegment(i.encode('latin1'), )
+    #         decrypted_ = decrypted.split('\n')[:-1]
+    #         for cid in cluster_ids:
+    #             l = LogHandler(lookup_table, cid)
+    #             for each in decrypted_:
+    #                 decoded = l.decode(each)                    
+    #                 decoded_message += (decoded+'\n')
+    #     end_ts = time()
+    #     print("decrypt-decode: ", end_ts-begin_ts)
         
 
     def PRF(self, k, data):

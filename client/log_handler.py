@@ -8,6 +8,7 @@
 ############
 
 import re
+from configparser import ConfigParser
 
 timestamp_id_pattern = [r"\d{10}\.\d{3}\:\d+", 
                 r"\d{4}(\/|\-|\:)\d{2}(\/|\-|\:)\d{2}(T|\s+|\:)\d{0,24}\:\d{0,59}\:\d{0,59}"]
@@ -36,6 +37,10 @@ variable_schema = { '0': r'\w+\(\d+\)',
 
 CSV_INPUT = 1
 ENCODING_FLAG = 1
+
+config_ = ConfigParser()
+config_.read("config.ini")
+SSE_MODE = int(config_["GLOBAL"]["SSE_MODE"])
 
 class LogHandler:
     def __init__(self, lookup_table, cluster_id):

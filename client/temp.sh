@@ -1,17 +1,11 @@
-echo '19'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '18'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '17'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '16'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '15'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '14'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '13'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '12'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '10'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '9'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '8'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '7'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '6'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '5'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '4'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '3'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
-echo '1'  | ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out.txt
+# for k in 3 5 7 9 11 13 15 17 19 21 23 25 27 29; do
+for k in 25 27 29; do
+    echo "part = ${k}" >> out.txt
+    ./clean.sh
+    python client.py -u orig/ingestion_perf/part${k}.csv >> out.txt
+
+    cp -r ltdict sse_dsse/dsse/ltdict_${k}g
+    cp -r vdict sse_dsse/dsse/vdict_${k}g
+    cp -r ../server/enc ../server/sse_dsse/dsse/enc_${k}g
+    cp metadata sse_dsse/dsse/metadata_${k}g
+done

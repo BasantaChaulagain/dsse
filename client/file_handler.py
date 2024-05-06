@@ -26,6 +26,7 @@ config_.read("config.ini")
 NUM_OF_LOGS = int(config_["CONF"]["num_of_logs"])
 NUM_OF_SEGMENTS = int(config_["CONF"]["num_of_segments"])
 NUM_OF_CLUSTERS = int(config_["CONF"]["num_of_clusters"])
+SSE_MODE = int(config_["GLOBAL"]["SSE_MODE"])
 
 class FileHandler():
     def __init__(self, file):
