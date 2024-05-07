@@ -38,6 +38,7 @@ from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto import Random
+from collections import defaultdict
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 import bcrypt
@@ -73,7 +74,10 @@ CSV_INPUT = 1
 
 config_ = ConfigParser()
 config_.read("config.ini")
+NUM_OF_SEGMENTS = int(config_["CONF"]["num_of_segments"])
+NUM_OF_CLUSTERS = int(config_["CONF"]["num_of_clusters"])
 SSE_MODE = int(config_["GLOBAL"]["SSE_MODE"])
+LAST_SEG_ID = int(config_['CONF']['last_segment_id'])
 
 # Default url is localhost, and the port 5000 is set by Flask on the server
 DEFAULT_URL = "http://127.0.0.1:5000/"
@@ -305,48 +309,69 @@ class SSE_Client():
 
     def update_index(self, vdict):
         for k, v in vdict.items():
-            print("cluster:", k)
             cluster_id = k
             process_dict = list(v.get('5').values())
             process_dict.extend(list(v.get('6').values()))
-            merged_p_dict = {}
-            for key, value in process_dict:
-                # Create a set to collect unique values
-                unique_values_set = set()
-                if key not in merged_p_dict:
-                    # If the key is not in the merged dictionary, directly add the values
-                    unique_values_set.update(value)
-                else:
-                    # If the key is already in the merged dictionary, add only unique values
-                    existing_values = set(merged_p_dict[key])
-                    unique_values_set.update(existing_values.union(value))
-                # Convert the set back to a list
-                unique_values_list = list(unique_values_set)
-                merged_p_dict[key] = unique_values_list
-
-            process_list = [[key, value] for key, value in merged_p_dict.items()]
-            # print(process_list)
             
             file_dict = list(v.get('16').values())
             if '23' in v.keys():
                 file_dict.extend(list(v.get('23').values()))
-            merged_f_dict = {}
-            for key, value in file_dict:
-                unique_values_set = set()
-                if key not in merged_f_dict:
-                    # If the key is not in the merged dictionary, directly add the values
-                    unique_values_set.update(value)
-                else:
-                    # If the key is already in the merged dictionary, add only unique values
-                    existing_values = set(merged_f_dict[key])
-                    unique_values_set.update(existing_values.union(value))
-                # Convert the set back to a list
-                unique_values_list = list(unique_values_set)
-                merged_f_dict[key] = unique_values_list
+                        
+            if SSE_MODE == 1:
+                merged_p_dict = {}
+                for key, value in process_dict:
+                    # Create a set to collect unique values
+                    unique_values_set = set()
+                    if key not in merged_p_dict:
+                        # If the key is not in the merged dictionary, directly add the values
+                        unique_values_set.update(value)
+                    else:
+                        # If the key is already in the merged dictionary, add only unique values
+                        existing_values = set(merged_p_dict[key])
+                        unique_values_set.update(existing_values.union(value))
+                    # Convert the set back to a list
+                    unique_values_list = list(unique_values_set)
+                    merged_p_dict[key] = unique_values_list
 
-            file_list = [[key, value] for key, value in merged_f_dict.items()]
-            # print(file_list)
+                process_list = [[key, value] for key, value in merged_p_dict.items()]
+                # print(process_list)
+                
+                merged_f_dict = {}
+                for key, value in file_dict:
+                    unique_values_set = set()
+                    if key not in merged_f_dict:
+                        # If the key is not in the merged dictionary, directly add the values
+                        unique_values_set.update(value)
+                    else:
+                        # If the key is already in the merged dictionary, add only unique values
+                        existing_values = set(merged_f_dict[key])
+                        unique_values_set.update(existing_values.union(value))
+                    # Convert the set back to a list
+                    unique_values_list = list(unique_values_set)
+                    merged_f_dict[key] = unique_values_list
+
+                file_list = [[key, value] for key, value in merged_f_dict.items()]
+                # print(file_list)
             
+            elif SSE_MODE == 2:
+                merged_p_dict = defaultdict(lambda: {'max_second': float('-inf'), 'max_third': float('-inf'), 'segs': []})
+                for first, second, third, fourth in process_dict:
+                    merged_p_dict[first]['max_second'] = max(merged_p_dict[first]['max_second'], second)
+                    merged_p_dict[first]['max_third'] = max(merged_p_dict[first]['max_third'], third)
+                    merged_p_dict[first]['segs'].extend(fourth)
+
+                # Convert the defaultdict back to a list
+                process_list = [[key, merged_p_dict[key]['max_second'], merged_p_dict[key]['max_third'], list(set(merged_p_dict[key]['segs']))] for key in merged_p_dict]
+                
+                merged_f_dict = defaultdict(lambda: {'max_second': float('-inf'), 'max_third': float('-inf'), 'segs': []})
+                for first, second, third, fourth in file_dict:
+                    merged_f_dict[first]['max_second'] = max(merged_f_dict[first]['max_second'], second)
+                    merged_f_dict[first]['max_third'] = max(merged_f_dict[first]['max_third'], third)
+                    merged_f_dict[first]['segs'].extend(fourth)
+
+                # Convert the defaultdict back to a list
+                file_list = [[key, merged_f_dict[key]['max_second'], merged_f_dict[key]['max_third'], list(set(merged_f_dict[key]['segs']))] for key in merged_f_dict]
+                
         update_idx_ts = datetime.now()
         
         indexes = []
@@ -363,35 +388,39 @@ class SSE_Client():
         # For each word, look through local index to see if it's there. If
         # not, set c = 0, and apply the PRF. Otherwise c == number of 
         # occurences of that word/term/number 
-        if SSE_MODE == 1:
-            for each in dict_list:
-                word = each[0]
+        for each in dict_list:
+            word = each[0]
+            k1 = self.PRF(self.k, ("1" + word))
+            k2 = self.PRF(self.k, ("2" + word))
+            
+            if SSE_MODE == 1:
                 segment_ids = DELIMETER.join(each[1])
-
-                k1 = self.PRF(self.k, ("1" + word))
-                k2 = self.PRF(self.k, ("2" + word))
-    
-                # Set l as the PRF of k1 (1 || w) and c (num of occur) if parsing the body            
                 l = k1
                 d = self.encryptSegmentID(k2, segment_ids).decode()
-
                 L.append((l, d))
 
+            elif SSE_MODE == 2:
+                segment_ids = DELIMETER.join(each[3])
+                l = self.PRF(k1, str(each[2]))
+                d = self.encryptSegmentID(k2, segment_ids).decode()
+                lprime = self.PRF(k1, str(each[1]))
+                L.append((l, d, lprime))
+    
         return L
 
 
     def update(self, filename):
         begin_ts = datetime.now()
-        
         file = FileHandler(filename)
         segments = file.split_file()
-        file.encode_logs(ENCODE)
-        encode_ts = datetime.now()
         
-        if SSE_MODE == 1 or SSE_MODE == 2:
-            for each in os.listdir("vdict"):
+        if SSE_MODE == 1:
+            file.encode_logs()
+            encode_ts = datetime.now()
+            total_clusters = len(os.listdir("vdict"))
+            for i in range(total_clusters - LAST_SEG_ID):
                 try:
-                    with open("vdict/"+each, 'r') as f:
+                    with open("vdict/vdict_cg"+str(i)+".json", 'r') as f:
                         vdict = json.load(f)
                 except:
                     vdict = {}
@@ -408,6 +437,37 @@ class SSE_Client():
                     print("Results of Index UPDATE: " + results)
                     
                 encrypt_idx_ts = datetime.now()
+        
+        elif SSE_MODE == 2:
+            segment_count = int(config_["CONF"]["last_segment_id"])
+            for segment in segments:
+                cluster_id = int(segment_count/NUM_OF_SEGMENTS)
+                clustergrp_id = int(cluster_id/NUM_OF_CLUSTERS)
+                segment_count+=1
+                
+                file.encode_logs_(segment, segment_count, cluster_id, clustergrp_id)
+                encode_ts = datetime.now()
+
+                try:
+                    with open("vdict/vdict_cg"+str(cluster_id)+".json", 'r') as f:
+                        vdict = json.load(f)
+                except:
+                    vdict = {}
+                (indexes, update_idx_ts) = self.update_index(vdict)
+                for index in indexes:
+                    # ((index, p or f, cluster_id))
+                    message = jmap.pack(UPDATE, index[0], index[1], index[2])
+                    # print(message)
+                    r = self.send(UPDATE, message)
+                    if(type(r) != dict):
+                        r = r.json()
+                    results = r['results']
+                    print("Results of Index UPDATE: " + results)
+              
+            config_["CONF"]["last_segment_id"] = str(segment_count)
+            with open('config.ini', 'w') as conf:
+                config_.write(conf)          
+            encrypt_idx_ts = datetime.now()
         
         # Then encrypt msg
         for seg in segments:
@@ -432,8 +492,8 @@ class SSE_Client():
 
             outfile.close()
 
-        # for f in os.listdir("tmp/"):
-        #     os.remove(os.path.join("tmp/", f))
+        for f in os.listdir("tmp/"):
+            os.remove(os.path.join("tmp/", f))
         
         encrypt_ts = datetime.now()
         
