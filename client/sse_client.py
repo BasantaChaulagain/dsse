@@ -177,6 +177,22 @@ def get_segment_cluster_info(word, schema_ids):
         return (segment_ids, cluster_ids)
 
 
+def get_count(word, cluster_id, schema_ids):
+    try:
+        with open('vdict/vdict_cg'+cluster_id[1]+'.json') as f:
+            vdict = json.load(f)
+            vdict = vdict[cluster_id]
+            cts = []
+            for schema_id in schema_ids:
+                if vdict.get(schema_id) is not None:
+                    for each in vdict.get(schema_id).values():
+                        if each[0] == word:
+                            cts.append(each[2])
+            return str(max(cts))
+    except:
+        return None
+    
+
 ########
 #
 # SSE_Client
@@ -518,12 +534,16 @@ class SSE_Client():
             (segments_ids, cluster_ids) = get_segment_cluster_info(word, schema_id)
         else:
             cluster_ids = get_cluster_id(word, schema_id)
-            print(cluster_ids)
             
             k1 = self.PRF(self.k, ("1" + word))
-            L.append((k1))
-            k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore')    
-    
+            k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore')
+            
+            if SSE_MODE == 1:
+                L.append((k1))
+            elif SSE_MODE == 2:
+                for cid in cluster_ids:
+                    count = get_count(word, cid, schema_id)
+                    L.append((k1, count))
             message = jmap.pack(SEARCH, L, query_type, cluster_ids)
             ret_data = self.send(SEARCH, message)
 
