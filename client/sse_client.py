@@ -430,7 +430,11 @@ class SSE_Client():
         file = FileHandler(filename)
         segments = file.split_file()
         
-        if SSE_MODE == 1:
+        if SSE_MODE == 0:
+            file.encode_logs()
+            encode_ts = datetime.now()
+            
+        elif SSE_MODE == 1:
             file.encode_logs()
             encode_ts = datetime.now()
             total_clusters = len(os.listdir("vdict"))
@@ -539,7 +543,8 @@ class SSE_Client():
             k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore')
             
             if SSE_MODE == 1:
-                L.append((k1))
+                for cid in cluster_ids:
+                    L.append((k1))
             elif SSE_MODE == 2:
                 for cid in cluster_ids:
                     count = get_count(word, cid, schema_id)
@@ -560,10 +565,8 @@ class SSE_Client():
                     if msg not in segments_ids:
                         segments_ids.append(str(msg))
             
-            
-        print("segs = ", segments_ids)
-        print("clus = ", cluster_ids)
-        
+        # print("segs = ", segments_ids)
+        # print("clus = ", cluster_ids)
         cur = self.db.cursor()
         if search_type == 'f':
             cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_start<=? and ts_end>=?''', (base_ts, base_ts))
@@ -606,6 +609,7 @@ class SSE_Client():
             return_result += "%s\n" % results
             return return_result
 
+        decode_start_ts = time()
         decoded_message = ''''''
         lookup_table = get_lookup_table(cur, return_segments)
         # print(lookup_table)
@@ -620,9 +624,11 @@ class SSE_Client():
                     if re.search(r'\b{}\b'.format(word), decoded):
                         decoded_message += (decoded+'\n')
         
+        decode_end_ts = time()
+        print("decrypt-decode: ", decode_end_ts-decode_start_ts)
         return_result += "metainfo: %s\n" % time()
         return_result += "%s" % decoded_message
-        print(return_result)
+        # print(return_result)
         return(return_result)
 
 

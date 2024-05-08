@@ -139,7 +139,7 @@ class FileHandler():
                 for log in seg:
                     segment_id=segment.split('/')[1]        # get filename only
                     l = LogHandler(lookup_table, "c"+str(cluster_id))
-                    encoded_message = l.encode(log, segment_id)
+                    encoded_message = l.encode(log, segment_id, None)
                     encoded_content = encoded_content + "\n" + encoded_message
                     lookup_table = l.get_updated_lookup_table()
             self.set_lookup_table(lookup_table, clustergrp_id)

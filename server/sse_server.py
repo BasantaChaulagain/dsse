@@ -176,19 +176,23 @@ def search():
     results = []
     
     for i in range(len(cluster_id)):
+        print(i, cluster_id)
+        print(query)
         index = dbm.open("indexes/"+cluster_id[i]+"_"+id_num+"_index", "r")
         print("searching in file: ", "indexes/"+cluster_id[i]+"_"+id_num+"_index")
             
         if SSE_MODE == 1:
-            seg_ids = index[query[i]].decode('latin1')
-            results.append(seg_ids)
+            if query[i] is not None:
+                seg_ids = index[query[i]].decode('latin1')
+                results.append(seg_ids)
 
         elif SSE_MODE == 2:
-            k1 = query[i][0].encode('latin1', 'ignore')
-            count = query[i][1].encode('latin1', 'ignore') or b'0'
+            if query[i] is not None:
+                k1 = query[i][0].encode('latin1', 'ignore')
+                count = query[i][1].encode('latin1', 'ignore') or b'0'
             
-            seg_ids = new_get(index, k1, count).decode('latin1')
-            results.append(seg_ids)
+                seg_ids = new_get(index, k1, count).decode('latin1')
+                results.append(seg_ids)
 
     # 'd' represents an encrypted id number for a message (in the 
     # simple case, just the message's name).
