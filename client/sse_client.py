@@ -169,7 +169,7 @@ def get_segment_cluster_info(word, schema_ids):
                 if value.get(schema_id) is not None:
                     for each in value.get(schema_id).values():
                         if each[0] == word:
-                            segment_ids.extend(each[1])
+                            segment_ids.extend(x for x in each[1] if x not in segment_ids)
                             if cid not in cluster_ids:
                                 cluster_ids.append(cid)
         return (segment_ids, cluster_ids)
@@ -536,7 +536,7 @@ class SSE_Client():
         schema_id = get_schema_id(query_type)
         if SSE_MODE == 0:
             (segments_ids, cluster_ids) = get_segment_cluster_info(word, schema_id)
-            print(cluster_ids)
+            # print(cluster_ids)
         else:
             cluster_ids = get_cluster_id(word, schema_id)
             
