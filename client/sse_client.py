@@ -536,6 +536,7 @@ class SSE_Client():
         schema_id = get_schema_id(query_type)
         if SSE_MODE == 0:
             (segments_ids, cluster_ids) = get_segment_cluster_info(word, schema_id)
+            print(cluster_ids)
         else:
             cluster_ids = get_cluster_id(word, schema_id)
             
@@ -632,27 +633,27 @@ class SSE_Client():
         return(return_result)
 
 
-    # def search_segments(self, segments, cluster_ids):
-    #     message = jmap.pack(SEARCH_DOC, segments)
-    #     ret_data = self.send(SEARCH_DOC, message)
-    #     cur = self.db.cursor()
-    #     if(type(ret_data) != dict):
-    #         ret_data = ret_data.json()
-    #     results = ret_data['results']
+    def search_segments(self, segments, cluster_ids):
+        message = jmap.pack(SEARCH_DOC, segments)
+        ret_data = self.send(SEARCH_DOC, message)
+        cur = self.db.cursor()
+        if(type(ret_data) != dict):
+            ret_data = ret_data.json()
+        results = ret_data['results']
 
-    #     begin_ts = time()
-    #     decoded_message = ''''''
-    #     lookup_table = get_lookup_table(cur, segments)
-    #     for i in results:
-    #         decrypted = self.decryptSegment(i.encode('latin1'), )
-    #         decrypted_ = decrypted.split('\n')[:-1]
-    #         for cid in cluster_ids:
-    #             l = LogHandler(lookup_table, cid)
-    #             for each in decrypted_:
-    #                 decoded = l.decode(each)                    
-    #                 decoded_message += (decoded+'\n')
-    #     end_ts = time()
-    #     print("decrypt-decode: ", end_ts-begin_ts)
+        begin_ts = time()
+        decoded_message = ''''''
+        lookup_table = get_lookup_table(cur, segments)
+        for i in results:
+            decrypted = self.decryptSegment(i.encode('latin1'), )
+            decrypted_ = decrypted.split('\n')[:-1]
+            for cid in cluster_ids:
+                l = LogHandler(lookup_table, cid)
+                for each in decrypted_:
+                    decoded = l.decode(each)                    
+                    decoded_message += (decoded+'\n')
+        end_ts = time()
+        print("decrypt-decode: ", end_ts-begin_ts)
         
 
     def PRF(self, k, data):

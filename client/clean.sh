@@ -1,8 +1,8 @@
 rm metadata
 
-rm enc/*
+# rm enc/*
 rm ../server/enc/*
-rm indexes/*
+# rm indexes/*
 rm ../server/indexes/*
 
 # echo {} > ltdict.json

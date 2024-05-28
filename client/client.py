@@ -90,8 +90,8 @@ def main():
                 cluster_ids.append('c'+str(c))
             
         if args.search_segments == '1':
-            segments = ['ifXCWsf97WigL8gZdZ56aQ', 'YyzrNYdqmocjRRUT6tJQYJ', 'KSCC8jUpG3x6WbqzqTjcYs', 'kzRFHhpo32KyDk7bfDxcjC', 'SiGGRnwVfWA7HiF7CYqUCM', 'goQwBRRf5YKQQQQA9VpADb', 'Kos9XKBBG6WW8HGNVzHSPp', 'Z3g4MBnuiTQgqUQBzoPC8v', 'QwVo2WNneuQoPcj5Wh2XEj', 'ekBi7d8Hr9eVNTxoBEkU9D', 'gDa6zyNx8Hj4KFvMCCfHL2', 'KkNkt3UDcnLaSnoHgoHSoC', 'U6yzswWdmRUhGvbADaoy6d', 'LKjs9zpsLvNinyAaJcR6NR', 'MwDwXBpK8kboCCmGdXhKAw', '8ZLrST7z64s3BZakzaAcTz','FwedpsXuWoHgoQtqrzfjFc', 'L4ZBjthu4TFskXvR2UH4ru', 'm2YnYVfjLAS9JagmwTmdK6', 'BQgsQprFDwkHAnbVV9okFv', 'hRbjuJLepwKy9yJecyLb4d']
-            cluster_ids = ['c43', 'c44', 'c45', 'c46', 'c47', 'c49']
+            segments = ['Zkv35jLXoqqitKndkJgnv9', 'SNfNwJSbfpAaL5PWh8USRY', 'g6BbKhgYZq43Gg3m6qHv87', 'RNFPdqSHHoxBDy7iLkQDzy']
+            cluster_ids = ['c0']
         
         sse.search_segments(segments, cluster_ids)
 

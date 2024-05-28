@@ -60,8 +60,9 @@ app.config['UPLOAD_FOLDER'] = 'enc'
 config_ = ConfigParser()
 config_.read("../client/config.ini")
 SSE_MODE = int(config_["GLOBAL"]["SSE_MODE"])
-print("mode", SSE_MODE)
-
+print("\n----------")
+print("| mode", SSE_MODE, "|")
+print("----------\n")
 DEBUG = 1
 
 # CMD list
@@ -157,13 +158,12 @@ def update():
 
 @app.route('/search', methods=['POST'])
 def search():
-    print("in search")
     in_time = time.time()
     if not request.json:
         return jsonify(results='Error: not json')
 
     (method, query, id_num, cluster_id) = jmap.unpack(SEARCH, request.get_json())
-    print(query, id_num, cluster_id)
+    print(cluster_id)
 
     if method != SEARCH_METHOD:
         return jsonify(results='Error: Wrong Method for url')
@@ -176,10 +176,8 @@ def search():
     results = []
     
     for i in range(len(cluster_id)):
-        print(i, cluster_id)
-        print(query)
         index = dbm.open("indexes/"+cluster_id[i]+"_"+id_num+"_index", "r")
-        print("searching in file: ", "indexes/"+cluster_id[i]+"_"+id_num+"_index")
+        # print("searching in file: ", "indexes/"+cluster_id[i]+"_"+id_num+"_index")
             
         if SSE_MODE == 1:
             if query[i] is not None:
