@@ -14,7 +14,10 @@ This system is tested on Ubuntu 20.04.06 and 24.04. The python version is 3.8.10
 
 Audit log data used in the evaluation of this project can be found here. We pre-process the raw audit log and convert it to a csv with all the information required for forensic analysis. Each event is represented by a 35-fields csv, the details of which can be found in [tracking/README_CSV.txt](tracking/README_CSV.txt).
 
+## Configuration
+
 ## Log Ingestion
+
 To use this SSE implementation, you must first have the server running:
 
 	python sse_server.py
@@ -25,7 +28,7 @@ Then invoke the client with one of the requisite options:
 
 It is also required that the user has access to some set of audit log file.
 
-## Options
+## Forensic Analysis
     -s, --search "<term(s)>"
         Search for term or terms in quotations
 
