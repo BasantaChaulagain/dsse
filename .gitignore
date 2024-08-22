@@ -57,3 +57,7 @@ tracking/UBSI_ft
 tracking/UBSI_into_SQL
 tracking/UBSI_print
 tracking/bridge
+client/AUDIT_bt
+client/AUDIT_ft
+client/init_scan
+client/metadata
