@@ -6,7 +6,7 @@ proc.pid; proc.ppid; proc.name; proc.exepath; user.uid; user.euid; user.gid;
 fd[0].num; fd[0].type; fd[0].filename; fd[0].name; fd[0].inode; fd[0].ip;
 fd[0].port; fd[1].num; fd[1].type; fd[1].filename; fd[1].name; fd[1].inode;
 fd[1].ip; fd[1].port; proc.cwd; proc.args; proc.name; proc.inode; dep.tid;
-dep.unitid;
+dep.unitid; create_flag;
 
 
 
@@ -52,3 +52,6 @@ UBSI_ENTRY and UBSI_EXIT:
 since we have unitid for each event, we don't need to consider
 UBSI_ENTRY and UBSI_EXIT events. (but I just keep them in the log)
 
+- create_flag:
+denote if the open event had the nametype=CREATE log in it. 
+If the flag is set to 1, then add the inode to inode_table for such open events.
