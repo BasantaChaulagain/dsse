@@ -48,3 +48,16 @@ client/orig/
 client/tmp/
 server/enc/
 server/indexes/
+
+# object files
+tracking/AUDIT_bt
+tracking/AUDIT_ft
+tracking/UBSI_bt
+tracking/UBSI_ft
+tracking/UBSI_into_SQL
+tracking/UBSI_print
+tracking/bridge
+client/AUDIT_bt
+client/AUDIT_ft
+client/init_scan
+client/metadata

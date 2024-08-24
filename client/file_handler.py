@@ -26,6 +26,7 @@ config_.read("config.ini")
 NUM_OF_LOGS = int(config_["CONF"]["num_of_logs"])
 NUM_OF_SEGMENTS = int(config_["CONF"]["num_of_segments"])
 NUM_OF_CLUSTERS = int(config_["CONF"]["num_of_clusters"])
+SSE_MODE = int(config_["GLOBAL"]["SSE_MODE"])
 
 class FileHandler():
     def __init__(self, file):
@@ -35,7 +36,20 @@ class FileHandler():
         self.db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, clustergroup_id text, ts_start real, ts_end real)''')
         if self.db == None:
             print("Error while opening database")
-
+            
+        if not os.path.exists('tmp/'):
+            os.makedirs('tmp/')
+        if not os.path.exists('enc/'):
+            os.makedirs('enc/')
+        if not os.path.exists('vdict/'):
+            os.makedirs('vdict/')
+        if not os.path.exists('ltdict/'):
+            os.makedirs('ltdict/')
+        if not os.path.exists('../server/indexes/'):
+            os.makedirs('../server/indexes/')
+        if not os.path.exists('../server/enc/'):
+            os.makedirs('../server/enc/')
+            
 
     def get_new_segment(self):
         new_file_name = 'tmp/'+str(shortuuid.uuid())
@@ -123,33 +137,52 @@ class FileHandler():
             f.write(content)
 
 
-    def encode_logs(self, encode):
+    def encode_logs(self):
         segment_count = int(config_["CONF"]["last_segment_id"])
+        
         for segment in self.segments:
             cluster_id = int(segment_count/NUM_OF_SEGMENTS)
             clustergrp_id = int(cluster_id/NUM_OF_CLUSTERS)
             segment_count+=1
             
-            if encode:
-                print("encoding the segment {}: {}".format(segment_count, segment))
-                lookup_table = self.get_lookup_table(clustergrp_id)      # [{},{}] initially
-                encoded_content = ""
-                with open(segment, 'r') as seg:
-                    for log in seg:
-                        segment_id=segment.split('/')[1]        # get filename only
-                        l = LogHandler(lookup_table, "c"+str(cluster_id))
-                        encoded_message = l.encode(log, segment_id)
-                        encoded_content = encoded_content + "\n" + encoded_message
-                        lookup_table = l.get_updated_lookup_table()
-                self.set_lookup_table(lookup_table, clustergrp_id)
-        
-                self.write_to_file(encoded_content, segment)
-                self.insert_to_metadata_db(segment, "c"+str(cluster_id), "cg"+str(clustergrp_id))
+            print("encoding the segment {}: {}".format(segment_count, segment))
+            lookup_table = self.get_lookup_table(clustergrp_id)      # [{},{}] initially
+            encoded_content = ""
+            with open(segment, 'r') as seg:
+                for log in seg:
+                    segment_id=segment.split('/')[1]        # get filename only
+                    l = LogHandler(lookup_table, "c"+str(cluster_id))
+                    encoded_message = l.encode(log, segment_id, None)
+                    encoded_content = encoded_content + "\n" + encoded_message
+                    lookup_table = l.get_updated_lookup_table()
+            self.set_lookup_table(lookup_table, clustergrp_id)
+    
+            self.write_to_file(encoded_content, segment)
+            self.insert_to_metadata_db(segment, "c"+str(cluster_id), "cg"+str(clustergrp_id))
             
         # write last_cluster_id to conf file after processing all the segments
         config_["CONF"]["last_segment_id"] = str(segment_count)
         with open('config.ini', 'w') as conf:
             config_.write(conf)
+        
+        
+    def encode_logs_(self, segment, segment_count, cluster_id, clustergrp_id):
+        print("encoding the segment {}: {}".format(segment_count, segment))
+        lookup_table = self.get_lookup_table(clustergrp_id)      # [{},{}] initially
+        encoded_content = ""
+        with open(segment, 'r') as seg:
+            first_log = True
+            for log in seg:
+                segment_id=segment.split('/')[1]        # get filename only
+                l = LogHandler(lookup_table, "c"+str(cluster_id))
+                encoded_message = l.encode(log, segment_id, first_log)
+                encoded_content = encoded_content + "\n" + encoded_message
+                lookup_table = l.get_updated_lookup_table()
+                first_log = False
+        self.set_lookup_table(lookup_table, clustergrp_id)
+        
+        self.write_to_file(encoded_content, segment)
+        self.insert_to_metadata_db(segment, "c"+str(cluster_id), "cg"+str(clustergrp_id))
         
     # def decode_logs(self):
     #     for segment in self.segments:

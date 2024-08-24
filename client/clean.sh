@@ -1,7 +1,9 @@
 rm metadata
 
+# rm enc/*
 rm ../server/enc/*
-# rm ../server/indexes/*
+# rm indexes/*
+rm ../server/indexes/*
 
 # echo {} > ltdict.json
 # echo {} > vdict.json

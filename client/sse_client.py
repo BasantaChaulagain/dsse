@@ -38,6 +38,7 @@ from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 from Crypto import Random
+from collections import defaultdict
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 import bcrypt
@@ -73,8 +74,10 @@ CSV_INPUT = 1
 
 config_ = ConfigParser()
 config_.read("config.ini")
-dsse_enabled = int(config_["GLOBAL"]["DSSE"])
-
+NUM_OF_SEGMENTS = int(config_["CONF"]["num_of_segments"])
+NUM_OF_CLUSTERS = int(config_["CONF"]["num_of_clusters"])
+SSE_MODE = int(config_["GLOBAL"]["SSE_MODE"])
+LAST_SEG_ID = int(config_['CONF']['last_segment_id'])
 
 # Default url is localhost, and the port 5000 is set by Flask on the server
 DEFAULT_URL = "http://127.0.0.1:5000/"
@@ -127,6 +130,28 @@ def get_lookup_table(cur, segments):
     return lookup_table
 
 
+def get_cluster_id(word, schema_ids):
+    cluster_ids = []
+    vdict = {}
+    try:
+        for file in os.listdir('vdict'):
+            with open('vdict/'+file, 'r') as f:
+                content = json.load(f)
+                vdict.update(content)
+                # vdict = {**vdict, **content}
+        
+        for cid, value in vdict.items():
+            for schema_id in schema_ids:
+                if value.get(schema_id) is not None:
+                    for each in value.get(schema_id).values():
+                        if each[0] == word:
+                            if cid not in cluster_ids:
+                                cluster_ids.append(cid)
+        return (cluster_ids)
+    except:
+        return (cluster_ids)
+
+
 def get_segment_cluster_info(word, schema_ids):
     segment_ids = []
     cluster_ids = []
@@ -144,12 +169,29 @@ def get_segment_cluster_info(word, schema_ids):
                 if value.get(schema_id) is not None:
                     for each in value.get(schema_id).values():
                         if each[0] == word:
-                            segment_ids.extend(each[1])
+                            segment_ids.extend(x for x in each[1] if x not in segment_ids)
                             if cid not in cluster_ids:
                                 cluster_ids.append(cid)
         return (segment_ids, cluster_ids)
     except:
         return (segment_ids, cluster_ids)
+
+
+def get_count(word, cluster_id, schema_ids):
+    try:
+        with open('vdict/vdict_cg'+cluster_id[1]+'.json') as f:
+            vdict = json.load(f)
+            vdict = vdict[cluster_id]
+            cts = []
+            for schema_id in schema_ids:
+                if vdict.get(schema_id) is not None:
+                    for each in vdict.get(schema_id).values():
+                        if each[0] == word:
+                            cts.append(each[2])
+            return str(max(cts))
+    except:
+        return None
+    
 
 ########
 #
@@ -162,7 +204,8 @@ class SSE_Client():
         self.password = b"password"
 
         self.iv = None
-        self.salt = b"$2b$12$ddTuco8zWXF2.kTqtOZa9O"
+        # self.salt = b"$2b$12$ddTuco8zWXF2.kTqtOZa9O"
+        self.salt = b"$2b$12$fz7BTMuSX.soZ7sOwNqPLu"
 
         # Two keys, generated/Initialized by KDF
         (self.k, self.kPrime) = self.initKeys()
@@ -175,7 +218,6 @@ class SSE_Client():
         self.cipher = self.initCipher()
 
         # Stemming tool (cuts words to their roots/stems)
-        self.stemmer = PorterStemmer()
         self.db = self.ensure_metadata_db()
 
     def initKeys(self):
@@ -260,18 +302,197 @@ class SSE_Client():
             return(tmp.decode('latin1'))
 
 
+    def encryptSegmentID(self, k2, segment_ids):
+
+        # Encrypt doc id (document) with key passed in (k2)
+
+        # set up new cipher using k2 and random iv
+        iv = Random.new().read(AES.block_size)
+        cipher = AES.new(k2[:16].encode('latin1'), AES.MODE_CBC, iv)
+
+        # pad to mod 16
+        while len(segment_ids)%16 != 0:
+            segment_ids = segment_ids + '\x08'
+
+        encId = iv + cipher.encrypt(segment_ids.encode('latin1'))
+
+        if (DEBUG > 1):
+            print(("New ID for '%s' = %s" % 
+                 (segment_ids, (binascii.hexlify(encId)))))
+
+        return binascii.hexlify(encId)
+
+
+    def update_index(self, vdict):
+        for k, v in vdict.items():
+            cluster_id = k
+            process_dict = list(v.get('5').values())
+            process_dict.extend(list(v.get('6').values()))
+            
+            file_dict = list(v.get('16').values())
+            if '23' in v.keys():
+                file_dict.extend(list(v.get('23').values()))
+                        
+            if SSE_MODE == 1:
+                merged_p_dict = {}
+                for key, value in process_dict:
+                    # Create a set to collect unique values
+                    unique_values_set = set()
+                    if key not in merged_p_dict:
+                        # If the key is not in the merged dictionary, directly add the values
+                        unique_values_set.update(value)
+                    else:
+                        # If the key is already in the merged dictionary, add only unique values
+                        existing_values = set(merged_p_dict[key])
+                        unique_values_set.update(existing_values.union(value))
+                    # Convert the set back to a list
+                    unique_values_list = list(unique_values_set)
+                    merged_p_dict[key] = unique_values_list
+
+                process_list = [[key, value] for key, value in merged_p_dict.items()]
+                # print(process_list)
+                
+                merged_f_dict = {}
+                for key, value in file_dict:
+                    unique_values_set = set()
+                    if key not in merged_f_dict:
+                        # If the key is not in the merged dictionary, directly add the values
+                        unique_values_set.update(value)
+                    else:
+                        # If the key is already in the merged dictionary, add only unique values
+                        existing_values = set(merged_f_dict[key])
+                        unique_values_set.update(existing_values.union(value))
+                    # Convert the set back to a list
+                    unique_values_list = list(unique_values_set)
+                    merged_f_dict[key] = unique_values_list
+
+                file_list = [[key, value] for key, value in merged_f_dict.items()]
+                # print(file_list)
+            
+            elif SSE_MODE == 2:
+                merged_p_dict = defaultdict(lambda: {'max_second': float('-inf'), 'max_third': float('-inf'), 'segs': []})
+                for first, second, third, fourth in process_dict:
+                    merged_p_dict[first]['max_second'] = max(merged_p_dict[first]['max_second'], second)
+                    merged_p_dict[first]['max_third'] = max(merged_p_dict[first]['max_third'], third)
+                    merged_p_dict[first]['segs'].extend(fourth)
+
+                # Convert the defaultdict back to a list
+                process_list = [[key, merged_p_dict[key]['max_second'], merged_p_dict[key]['max_third'], list(set(merged_p_dict[key]['segs']))] for key in merged_p_dict]
+                
+                merged_f_dict = defaultdict(lambda: {'max_second': float('-inf'), 'max_third': float('-inf'), 'segs': []})
+                for first, second, third, fourth in file_dict:
+                    merged_f_dict[first]['max_second'] = max(merged_f_dict[first]['max_second'], second)
+                    merged_f_dict[first]['max_third'] = max(merged_f_dict[first]['max_third'], third)
+                    merged_f_dict[first]['segs'].extend(fourth)
+
+                # Convert the defaultdict back to a list
+                file_list = [[key, merged_f_dict[key]['max_second'], merged_f_dict[key]['max_third'], list(set(merged_f_dict[key]['segs']))] for key in merged_f_dict]
+                
+        update_idx_ts = datetime.now()
+        
+        indexes = []
+        index = self.encryptIndex(process_list)
+        indexes.append((index, 'p', cluster_id))
+        index = self.encryptIndex(file_list)
+        indexes.append((index, 'f', cluster_id))
+        
+        return (indexes, update_idx_ts)
+
+
+    def encryptIndex(self, dict_list):
+        L = []
+        # For each word, look through local index to see if it's there. If
+        # not, set c = 0, and apply the PRF. Otherwise c == number of 
+        # occurences of that word/term/number 
+        for each in dict_list:
+            word = each[0]
+            k1 = self.PRF(self.k, ("1" + word))
+            k2 = self.PRF(self.k, ("2" + word))
+            
+            if SSE_MODE == 1:
+                segment_ids = DELIMETER.join(each[1])
+                l = k1
+                d = self.encryptSegmentID(k2, segment_ids).decode()
+                L.append((l, d))
+
+            elif SSE_MODE == 2:
+                segment_ids = DELIMETER.join(each[3])
+                l = self.PRF(k1, str(each[2]))
+                d = self.encryptSegmentID(k2, segment_ids).decode()
+                lprime = self.PRF(k1, str(each[1]))
+                L.append((l, d, lprime))
+    
+        return L
+
+
     def update(self, filename):
         begin_ts = datetime.now()
-        
         file = FileHandler(filename)
         segments = file.split_file()
-        file.encode_logs(ENCODE)        
-        encode_ts = datetime.now()
+        
+        if SSE_MODE == 0:
+            file.encode_logs()
+            encode_ts = datetime.now()
+            
+        elif SSE_MODE == 1:
+            file.encode_logs()
+            encode_ts = datetime.now()
+            total_clusters = len(os.listdir("vdict"))
+            for i in range(total_clusters - LAST_SEG_ID):
+                try:
+                    with open("vdict/vdict_cg"+str(i)+".json", 'r') as f:
+                        vdict = json.load(f)
+                except:
+                    vdict = {}
+                (indexes, update_idx_ts) = self.update_index(vdict)
+                
+                for index in indexes:
+                    # ((index, p or f, cluster_id))
+                    message = jmap.pack(UPDATE, index[0], index[1], index[2])
+                    # print(message)
+                    r = self.send(UPDATE, message)
+                    if(type(r) != dict):
+                        r = r.json()
+                    results = r['results']
+                    print("Results of Index UPDATE: " + results)
+                    
+                encrypt_idx_ts = datetime.now()
+        
+        elif SSE_MODE == 2:
+            segment_count = int(config_["CONF"]["last_segment_id"])
+            for segment in segments:
+                cluster_id = int(segment_count/NUM_OF_SEGMENTS)
+                clustergrp_id = int(cluster_id/NUM_OF_CLUSTERS)
+                segment_count+=1
+                
+                file.encode_logs_(segment, segment_count, cluster_id, clustergrp_id)
+                encode_ts = datetime.now()
+
+                try:
+                    with open("vdict/vdict_cg"+str(cluster_id)+".json", 'r') as f:
+                        vdict = json.load(f)
+                except:
+                    vdict = {}
+                (indexes, update_idx_ts) = self.update_index(vdict)
+                for index in indexes:
+                    # ((index, p or f, cluster_id))
+                    message = jmap.pack(UPDATE, index[0], index[1], index[2])
+                    # print(message)
+                    r = self.send(UPDATE, message)
+                    if(type(r) != dict):
+                        r = r.json()
+                    results = r['results']
+                    print("Results of Index UPDATE: " + results)
+              
+            config_["CONF"]["last_segment_id"] = str(segment_count)
+            with open('config.ini', 'w') as conf:
+                config_.write(conf)          
+            encrypt_idx_ts = datetime.now()
         
         # Then encrypt msg
         for seg in segments:
             print("Encrypting segment: ", seg)
-            infile = open(seg, "r") 
+            infile = open(seg, "r")
             outfilename_ = seg.split('/')[1]
             outfilename = "enc/" + outfilename_
             outfile = open(outfilename, "wb+")
@@ -291,8 +512,8 @@ class SSE_Client():
 
             outfile.close()
 
-        # for f in os.listdir("tmp/"):
-        #     os.remove(os.path.join("tmp/", f))
+        for f in os.listdir("tmp/"):
+            os.remove(os.path.join("tmp/", f))
         
         encrypt_ts = datetime.now()
         
@@ -306,17 +527,47 @@ class SSE_Client():
 
 
     def search(self, query, base_ts=0, search_type='', query_type=None):
-        # print(query, base_ts, search_type, query_type)
         return_result = ""
         return_result += "metainfo: %s\n" % time()
         begin_ts = time()
         
+        L = []
         word = query.lower()
         schema_id = get_schema_id(query_type)
-        (segments_ids, cluster_ids) = get_segment_cluster_info(word, schema_id)
-        print("segs = ", segments_ids)
-        print("clus = ", cluster_ids)
-        
+        if SSE_MODE == 0:
+            (segments_ids, cluster_ids) = get_segment_cluster_info(word, schema_id)
+            # print(cluster_ids)
+        else:
+            cluster_ids = get_cluster_id(word, schema_id)
+            
+            k1 = self.PRF(self.k, ("1" + word))
+            k2 = self.PRF(self.k, ("2" + word)).encode('latin1', 'ignore')
+            
+            if SSE_MODE == 1:
+                for cid in cluster_ids:
+                    L.append((k1))
+            elif SSE_MODE == 2:
+                for cid in cluster_ids:
+                    count = get_count(word, cid, schema_id)
+                    L.append((k1, count))
+            message = jmap.pack(SEARCH, L, query_type, cluster_ids)
+            ret_data = self.send(SEARCH, message)
+
+            segments_e = ret_data['results']
+            segments_ids = []
+            
+            for each in segments_e:
+                m_str = ''
+                m = self.dec(k2, each).decode()
+                for x in m:
+                    if x in string.printable:
+                        m_str += x
+                for msg in m_str.split(DELIMETER):
+                    if msg not in segments_ids:
+                        segments_ids.append(str(msg))
+            
+        # print("segs = ", segments_ids)
+        # print("clus = ", cluster_ids)
         cur = self.db.cursor()
         if search_type == 'f':
             cur.execute('''SELECT segment_id FROM SEGMENT_INFO WHERE ts_start<=? and ts_end>=?''', (base_ts, base_ts))
@@ -345,7 +596,7 @@ class SSE_Client():
             if each in relevant_segments:
                 return_segments.append(each)
         index_ts = time()
-        print ("index time: ", index_ts-begin_ts)
+        # print ("index time: ", index_ts-begin_ts)
         
         message = jmap.pack(SEARCH_DOC, return_segments)
         ret_data = self.send(SEARCH_DOC, message)
@@ -359,6 +610,7 @@ class SSE_Client():
             return_result += "%s\n" % results
             return return_result
 
+        decode_start_ts = time()
         decoded_message = ''''''
         lookup_table = get_lookup_table(cur, return_segments)
         # print(lookup_table)
@@ -373,6 +625,8 @@ class SSE_Client():
                     if re.search(r'\b{}\b'.format(word), decoded):
                         decoded_message += (decoded+'\n')
         
+        decode_end_ts = time()
+        # print("decrypt-decode: ", decode_end_ts-decode_start_ts)
         return_result += "metainfo: %s\n" % time()
         return_result += "%s" % decoded_message
         # print(return_result)
@@ -460,5 +714,5 @@ class SSE_Client():
             # print("client-to-server:", float(server_in_time)-client_out_time)  # n/w delay when sending
             # print("server-to-client:", client_in_time-float(server_out_time))  # n/w delay when receiving
             # print("server-processing-time:", float(server_out_time)-float(server_in_time)) # server processing time
-            print("nw-time:", client_in_time-client_out_time) # total network time
+            # print("nw-time:", client_in_time-client_out_time) # total network time
         return (result_json)

@@ -39,6 +39,7 @@ import sys
 from Crypto.Hash import HMAC
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
+from configparser import ConfigParser
 import binascii
 import dbm
 import string
@@ -56,6 +57,12 @@ from jmap import jmap
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'enc'
 
+config_ = ConfigParser()
+config_.read("../client/config.ini")
+SSE_MODE = int(config_["GLOBAL"]["SSE_MODE"])
+print("\n----------")
+print("| mode", SSE_MODE, "|")
+print("----------\n")
 DEBUG = 1
 
 # CMD list
@@ -116,18 +123,34 @@ def update():
         return jsonify(results='Error: Wrong Method for url')
 
     # Open local ecypted index and get length
-    index = dbm.open("indexes/"+str(cluster_id)+"_index_"+str(id_num), "c")
+    index = dbm.open("indexes/"+str(cluster_id)+"_"+str(id_num)+"_index", "c")
 
-    # Iterate through update list, replacing existing entries in local
-    # index if collisions
-    for i in new_index:
-        # i0 is the key (ie the hashed term), 
-        # i1 is the value (encrypted list of mailIDs where that word is
-        # present.
-        i0 = i[0].encode('latin1', 'ignore')
-        i1 = i[1].encode('latin1', 'ignore')
+    if SSE_MODE == 2:
+    # Iterate through update list, replacing existing entries in local index if collisions
+        for i in new_index:
+            i0 = i[0].encode('latin1', 'ignore')
+            i1 = i[1].encode('latin1', 'ignore')
+            if i[2]:
+                i2 = i[2].encode('latin1', 'ignore')
+            match = i2 or i0
 
-        index[i0] = i1
+            # Go through local index and compare, if match, then delete that entry and add new one.
+            for k in index.keys():
+                if match == k: # and i1 == v:
+                    del index[k]
+                    break
+
+            index[i0] = i1
+            
+    elif SSE_MODE == 1:
+    # Iterate through add list, adding new entries
+        for i in new_index:
+            # i0 is the key (ie the hashed term), 
+            # i1 is the value (encrypted list of mailIDs where that word is present.
+            i0 = i[0].encode('latin1', 'ignore')
+            i1 = i[1].encode('latin1', 'ignore')
+
+            index[i0] = i1
 
     index.close()
     return jsonify(results="GOOD UPDATE")
@@ -135,12 +158,12 @@ def update():
 
 @app.route('/search', methods=['POST'])
 def search():
-    print("in search")
     in_time = time.time()
     if not request.json:
         return jsonify(results='Error: not json')
 
     (method, query, id_num, cluster_id) = jmap.unpack(SEARCH, request.get_json())
+    print(cluster_id)
 
     if method != SEARCH_METHOD:
         return jsonify(results='Error: Wrong Method for url')
@@ -151,23 +174,30 @@ def search():
     # and use k2 to decrypt each value (mail ID or name) that is associated
     # with that key.
     results = []
-    i = 0
     
     for i in range(len(cluster_id)):
-        index = dbm.open("indexes/"+cluster_id[i]+"_index_"+id_num, "r")
-        print("searching in file: ", "indexes/"+cluster_id[i]+"_index_"+id_num)
-        
-        seg_ids = index[query[i]].decode('latin1')
-        results.append(seg_ids)
-        i+=0
-        
+        index = dbm.open("indexes/"+cluster_id[i]+"_"+id_num+"_index", "r")
+        # print("searching in file: ", "indexes/"+cluster_id[i]+"_"+id_num+"_index")
+            
+        if SSE_MODE == 1:
+            if query[i] is not None:
+                seg_ids = index[query[i]].decode('latin1')
+                results.append(seg_ids)
+
+        elif SSE_MODE == 2:
+            if query[i] is not None:
+                k1 = query[i][0].encode('latin1', 'ignore')
+                count = query[i][1].encode('latin1', 'ignore') or b'0'
+            
+                seg_ids = new_get(index, k1, count).decode('latin1')
+                results.append(seg_ids)
+
     # 'd' represents an encrypted id number for a message (in the 
     # simple case, just the message's name).
 
     # Go through list of d's in which the search query was found and
     # dec() each and add to list of id's (M).
     # Send those messages are found to the client
-    print(results)
     return ({"results":results})
 
 
@@ -199,7 +229,6 @@ def search_doc():
 
 # Decrypt doc ID using k2
 def dec(k2, d):
-
     d_bin = binascii.unhexlify(d) 
     iv = d_bin[:16]
     cipher = AES.new(k2[:16], AES.MODE_CBC, iv)
@@ -217,7 +246,6 @@ def PRF(k, data):
     return hmac.hexdigest()
 
 def get_index_len(index):
-
     # TODO: crappy hack for now. Need to get size of index,
     # but I'm not sure what the best method is. So for now, 
     # just iterate through and grab the count.
@@ -226,6 +254,16 @@ def get_index_len(index):
         count = count+1
 
     return count
+
+# Use k1 (hashed search term) and c (num of files it's in) to get key, and 
+# then value of index entry.
+def new_get(index, k1, c):
+    try:
+        F = PRF(k1, c)
+        d = index[F]
+    except:
+        d = None
+    return d
 
 
 if __name__ == '__main__':
