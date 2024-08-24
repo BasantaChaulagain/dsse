@@ -12,7 +12,7 @@ The 'client' folder contains the source code for ingestion of logs and performin
 
 This system is tested on Ubuntu 20.04.06 and 24.04. The python version is 3.8.10 (pip version 20.0.2) and cpp(g++) version is >=9.4.0. Other python dependencies of the project are written in requirements.txt file. Install all the requirements before running the project.
 
-Audit log data used in the evaluation of this project can be found here. We pre-process the raw audit log and convert it to a csv with all the information required for forensic analysis. Each event is represented by a 35-fields csv, the details of which can be found in [tracking/README_CSV.txt](tracking/README_CSV.txt).
+Audit log data used in the evaluation of this project can be found [here](). We pre-process the raw audit log and convert it to a csv with all the information required for forensic analysis. Each event is represented by a 35-fields csv, the details of which can be found in [tracking/README_CSV.txt](tracking/README_CSV.txt).
 
 ## Configuration and Set-up
 
@@ -50,9 +50,7 @@ Audit log data used in the evaluation of this project can be found here. We pre-
 1. Run the server program in a separate terminal inside a virtual environment. The server program is hosted in localhost port 5000, which represents a remote cloud server. Keep it running as long as you are using the system for ingestion and forensic analysis.
 ```
     cd server
-
     source ../../bin/activate
-
     python sse_server.py
 ```
 
@@ -64,22 +62,28 @@ Audit log data used in the evaluation of this project can be found here. We pre-
     ./clean.sh
 ```
 
-3. Initiate a log ingestion process for an audit log of the motivating example, contained in the (client/sample_data) folder.
+3. Initiate a log ingestion process for an audit log of the motivating example, contained in the (client/sample_data) folder. This will segment the logs, encode and encrypt the logs and send the encrypted logs and indexes to the cloud server. (can be found in server/enc and server/indexes respectively.)
 ```
     python client.py -u sample_data/mot_data_theft.csv
 ```
 
-
-
-Then invoke the client with one of the requisite options:
-
-	python client.py <OPTION>
-
-It is also required that the user has access to some set of audit log file.
+Note: -u is for ingesting/updating a log file. For other options, see `python client.py -h`.
 
 ## Forensic Analysis
-    -s, --search "<term(s)>"
-        Search for term or terms in quotations
 
-    -u, --update "<file>"
-        Updates a single file, included appending local index, appending encrypted remote index, encrypting "file", and sending it to server.
+Forensic analysis is can either by backtracking or forward tracking. Investigator needs to specify the type of analysis (backtracking or AUDIT_ft), process identifier (pid) or file inode to analyze and the initial database table containing the mapping of pids and inodes to their respective process name and file names respectively.
+
+1. Create a initial database from the log that contains the mapping of pids and inodes to their respective process names and filenames. The following command will create a file named `mot_data_theft.csv_init_table.dat` in `sample_data` directory, which is used for analysis. Note: The table can be generated using `./AUDIT_ft` command as well, and `-p 1` denotes a dummy pid.
+```
+./AUDIT_bt -i sample_data/mot_data_theft.csv -p 1
+```
+
+2. Using the table generated in step 1, perform a forward tracking analysis on a stolen file `salary_sheet.csv (inode: 22550385)`. This will create a graph named `AUDIT_ft.gv`. Use `./AUDIT_bt` for backtracking and `-p` option to analyze pid.
+```
+./AUDIT_ft -t sample_data/mot_data_theft.csv_init_table.dat -f 22550385
+```
+
+3. Convert the text graph data to a visual form using `graphviz`. Install graphviz with `sudo apt install graphviz`.
+```
+dot -T png AUDIT_ft.gv -o graph1.png
+```
