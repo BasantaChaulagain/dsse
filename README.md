@@ -38,7 +38,7 @@ Audit log data used in the evaluation of this project can be found [here](). We 
 5. Change the [config file](client/config.ini) to set the system hyperparameter values like number of logs in a segment, number of segments in a cluster, mode of operation, etc. Skip this step to select the default options.
 
 6. Compile the C++ source code in 'tracking' folder, and copy 'AUDIT_bt' and 'AUDIT_ft' to the client directory
-```  
+```
     cd tracking
     make
     cp AUDIT_bt ../client/

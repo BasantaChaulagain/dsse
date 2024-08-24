@@ -596,7 +596,7 @@ class SSE_Client():
             if each in relevant_segments:
                 return_segments.append(each)
         index_ts = time()
-        print ("index time: ", index_ts-begin_ts)
+        # print ("index time: ", index_ts-begin_ts)
         
         message = jmap.pack(SEARCH_DOC, return_segments)
         ret_data = self.send(SEARCH_DOC, message)
@@ -626,7 +626,7 @@ class SSE_Client():
                         decoded_message += (decoded+'\n')
         
         decode_end_ts = time()
-        print("decrypt-decode: ", decode_end_ts-decode_start_ts)
+        # print("decrypt-decode: ", decode_end_ts-decode_start_ts)
         return_result += "metainfo: %s\n" % time()
         return_result += "%s" % decoded_message
         # print(return_result)
@@ -714,5 +714,5 @@ class SSE_Client():
             # print("client-to-server:", float(server_in_time)-client_out_time)  # n/w delay when sending
             # print("server-to-client:", client_in_time-float(server_out_time))  # n/w delay when receiving
             # print("server-processing-time:", float(server_out_time)-float(server_in_time)) # server processing time
-            print("nw-time:", client_in_time-client_out_time) # total network time
+            # print("nw-time:", client_in_time-client_out_time) # total network time
         return (result_json)
