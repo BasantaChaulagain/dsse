@@ -21,16 +21,30 @@ Audit log data used in the evaluation of this project can be found here. We pre-
 2. Make a virtual environment and activate it.
 
     python3 -m venv /path/to/new/venv
+
     cd /path/to/new/venv
+
     source bin/activate
 
 3. Clone [this github repo](https://github.com/BasantaChaulagain/faseal).
+
     git clone https://github.com/BasantaChaulagain/faseal.git
 
 4. Install the requirements from requirements.txt inside the virtual environment.
+
     pip install -r requirements.txt
 
 5. Change the [config file](client/config.ini) to set the system hyperparameter values like number of logs in a segment, number of segments in a cluster, mode of operation, etc. Skip this step to select the default options.
+
+6. Compile the C++ source code in 'tracking' folder, and copy 'AUDIT_bt' and 'AUDIT_ft' to the client directory
+    
+    cd tracking
+
+    make
+
+    cp AUDIT_bt ../client/
+
+    cp AUDIT_ft ../client/
 
 
 ## Log Ingestion
@@ -38,18 +52,23 @@ Audit log data used in the evaluation of this project can be found here. We pre-
 1. Run the server program in a separate terminal inside a virtual environment. The server program is hosted in localhost port 5000, which represents a remote cloud server. Keep it running as long as you are using the system for ingestion and forensic analysis.
 
     cd server
+
     source ../../bin/activate
+
     python sse_server.py
 
 2. From the client directory, run the script 'clean.sh' that erases the currently stored encrypted logs and indexes from the cloud server and allows to begin a new ingestion process.
-    
+
     cd client
+
     source ../../bin/activate
+
     ./clean.sh
 
 3. Initiate a log ingestion process for an audit log of the motivating example, contained in the (client/sample_data) folder.
     
     python client.py -u sample_data/mot_data_theft.csv
+
 
 
 
