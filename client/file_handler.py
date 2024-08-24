@@ -36,7 +36,14 @@ class FileHandler():
         self.db.execute('''CREATE TABLE IF NOT EXISTS SEGMENT_INFO (file_id text, segment_id text, cluster_id text, clustergroup_id text, ts_start real, ts_end real)''')
         if self.db == None:
             print("Error while opening database")
-
+            
+        if not os.path.exists('tmp/'):
+            os.makedirs('tmp/')
+        if not os.path.exists('vdict/'):
+            os.makedirs('vdict/')
+        if not os.path.exists('ltdict/'):
+            os.makedirs('ltdict/')
+            
 
     def get_new_segment(self):
         new_file_name = 'tmp/'+str(shortuuid.uuid())
