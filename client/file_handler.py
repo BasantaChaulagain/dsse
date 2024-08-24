@@ -39,10 +39,16 @@ class FileHandler():
             
         if not os.path.exists('tmp/'):
             os.makedirs('tmp/')
+        if not os.path.exists('enc/'):
+            os.makedirs('enc/')
         if not os.path.exists('vdict/'):
             os.makedirs('vdict/')
         if not os.path.exists('ltdict/'):
             os.makedirs('ltdict/')
+        if not os.path.exists('../server/indexes/'):
+            os.makedirs('../server/indexes/')
+        if not os.path.exists('../server/enc/'):
+            os.makedirs('../server/enc/')
             
 
     def get_new_segment(self):
