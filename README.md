@@ -20,7 +20,7 @@ Audit log data used in the evaluation of this project can be found [here](). We 
 
 2. Make a virtual environment and activate it.
 ```
-    python3 -m venv /path/to/new/venv
+    python3.8 -m venv /path/to/new/venv
     cd /path/to/new/venv
     source bin/activate
 ```
