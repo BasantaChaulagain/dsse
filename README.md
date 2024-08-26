@@ -73,7 +73,7 @@ Note: -u is for ingesting/updating a log file. For other options, see `python cl
 
 Forensic analysis is can either by backtracking or forward tracking. Investigator needs to specify the type of analysis (backtracking or AUDIT_ft), process identifier (pid) or file inode to analyze and the initial database table containing the mapping of pids and inodes to their respective process name and file names respectively.
 
-1. Create a initial database from the log that contains the mapping of pids and inodes to their respective process names and filenames. The following command will create a file named `mot_data_theft.csv_init_table.dat` in `sample_data` directory, which is used for analysis. Note: The table can be generated using `./AUDIT_ft` command as well, and `-p 1` denotes a dummy pid.
+1. Create a initial database from the log that contains the mapping of pids and inodes to their respective process names and filenames. The following command will create a file named `mot_data_theft.csv_init_table.dat` in `sample_data` directory, which is used for analysis. Note: The table can be generated using `./AUDIT_ft` command as well, and `-p 1` denotes a dummy pid. You just need to run this command once for a log file. 
 ```
 ./AUDIT_bt -i sample_data/mot_data_theft.csv -p 1
 ```
@@ -85,5 +85,5 @@ Forensic analysis is can either by backtracking or forward tracking. Investigato
 
 3. Convert the text graph data to a visual form using `graphviz`. Install graphviz with `sudo apt install graphviz`.
 ```
-dot -T png AUDIT_ft.gv -o graph1.png
+dot -T png AUDIT_ft.gv -o output_graphs/graph1.png
 ```
