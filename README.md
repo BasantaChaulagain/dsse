@@ -87,3 +87,5 @@ Forensic analysis is can either by backtracking or forward tracking. Investigato
 ```
 dot -T png AUDIT_ft.gv -o output_graphs/graph1.png
 ```
+
+4. Now, try performing backtracking on the 'scph' process `(pid-489755)` and forward tracking on the 'sensitive.zip' file `(inode-9181460)`, and generate the graphs.
