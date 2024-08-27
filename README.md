@@ -83,7 +83,13 @@ Forensic analysis is can either by backtracking or forward tracking. Investigato
 ./AUDIT_ft -t sample_data/mot_data_theft.csv_init_table.dat -f 22550385
 ```
 
-3. Convert the text graph data to a visual form using `graphviz`. Install graphviz with `sudo apt install graphviz`.
+3. Convert the text graph data to a visual form using `graphviz`. Note: Install graphviz with `sudo apt install graphviz`, if not installed.
 ```
-dot -T png AUDIT_ft.gv -o graph1.png
+dot -T png AUDIT_ft.gv -o output_graphs/graph1.png
+```
+
+4. Now, perform backtracking on the process `scph (pid: 489755)` and generate the visual graph.
+```
+./AUDIT_bt -t sample_data/mot_data_theft.csv_init_table.dat -p 489755
+dot -T png AUDIT_ft.gv -o output_graphs/graph2.png
 ```
