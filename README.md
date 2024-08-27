@@ -64,7 +64,7 @@ Audit log data used in the evaluation of this project can be found [here](). We 
 
 3. Initiate a log ingestion process for an audit log of the motivating example, contained in the (client/sample_data) folder. This will segment the logs, encode and encrypt the logs and send the encrypted logs and indexes to the cloud server. (can be found in server/enc and server/indexes respectively.)
 ```
-    python client.py -u sample_data/mot_data_theft.csv
+    python client.py -u sample_data/a1.data_theft.csv
 ```
 
 Note: -u is for ingesting/updating a log file. For other options, see `python client.py -h`.
@@ -73,24 +73,19 @@ Note: -u is for ingesting/updating a log file. For other options, see `python cl
 
 Forensic analysis is can either by backtracking or forward tracking. Investigator needs to specify the type of analysis (backtracking or AUDIT_ft), process identifier (pid) or file inode to analyze and the audit log file containing the attack logs.
 
-1. Create aninitial database from the log file that contains the mapping of pids and inodes to their respective process names and filenames. The following command will create a file named `a1.data_theft.csv_init_table.dat` in `sample_data` directory, which is used for analysis. Note: The table can be generated using `./AUDIT_ft` command as well, and `-p 1` denotes a dummy pid. You just need to run this command once for a log file. 
+1. Go to the investigator folder and perform a forward tracking analysis on a stolen file `salary-nov.csv (inode: 22550385)` inside a virtual environment. This will create a graph named `AUDIT_ft.gv`. Use `./AUDIT_bt` for backtracking and `-p` option to analyze pid.
 ```
-cd client/
-./AUDIT_bt -i sample_data/a1.data_theft.csv -p 1
-```
-
-2. Go to the investigator folder and perform a forward tracking analysis on a stolen file `salary_sheet.csv (inode: 22550385)`. This will create a graph named `AUDIT_ft.gv`. Use `./AUDIT_bt` for backtracking and `-p` option to analyze pid.
-```
-cd ../investigator/
+cd investigator/
+source ../../bin/activate
 ./forensics.sh ft a1.data_theft.csv f 22550385
 ```
 
-3. Convert the text graph data to a visual form using `graphviz`. Note: Install graphviz with `sudo apt install graphviz`, if not installed.
+2. Convert the text graph data to a visual form using `graphviz`. Note: Install graphviz with `sudo apt install graphviz`, if not installed.
 ```
 dot -T png AUDIT_ft.gv -o output_graphs/graph1.png
 ```
 
-4. Now, perform backtracking on the process `scph (pid: 489755)` and generate the visual graph.
+3. Now, perform backtracking on the process `scph (pid: 489755)` and generate the visual graph.
 ```
 ./forensics.sh bt a1.data_theft.csv p 489755
 dot -T png AUDIT_bt.gv -o output_graphs/graph2.png

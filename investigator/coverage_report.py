@@ -6,7 +6,7 @@ def main(argv):
     num_of_relevant_logs = -1
     for opt, arg in opts:
         if opt == "-h":
-            print("USAGE:: python coverage_report -i <original_file> -g <graph_file>")
+            print("USAGE:: python coverage_report.py -i <original_file> -g <graph_file>")
             sys.exit()
         elif opt == "-i":
             original_file = arg

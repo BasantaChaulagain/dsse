@@ -33,6 +33,11 @@ fi
 log_file="sample_data/${2}_init_table.dat"
 cmd+="$log_file"
 
+# Check if the log file exists
+if [ ! -f "$log_file" ]; then
+    ./AUDIT_bt -i "sample_data/${2}" -p 1
+fi
+
 # Check the third argument
 if [ "$3" == "p" ]; then
     cmd+=" -p "
