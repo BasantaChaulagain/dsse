@@ -91,5 +91,5 @@ dot -T png AUDIT_ft.gv -o output_graphs/graph1.png
 4. Now, perform backtracking on the process `scph (pid: 489755)` and generate the visual graph.
 ```
 ./AUDIT_bt -t sample_data/mot_data_theft.csv_init_table.dat -p 489755
-dot -T png AUDIT_ft.gv -o output_graphs/graph2.png
+dot -T png AUDIT_bt.gv -o output_graphs/graph2.png
 ```
