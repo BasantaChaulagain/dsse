@@ -12,8 +12,8 @@ for k in 8 10 12 14; do
         echo "${k}k_${c} loaded." >> out_light.txt
 
         # echo '2'  | ./AUDIT_bt -t li_d_init_table.dat -f 23464152 >> out_light.txt
-        ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out_light.txt
-        ./AUDIT_ft -t li_d_init_table.dat -f 34123 >> out_light.txt
+        ./forensics.sh bt li_d f 25165885 >> out_light.txt
+        ./forensics.sh ft li_d f 34123 >> out_light.txt
         echo -e '\n\n\n' >> out_light.txt
     done
 done
@@ -35,8 +35,8 @@ for k in 8 10 12 14; do
         cp ../server/out_light/h/enc_li_h_${k}k_${c}/* ../server/enc
         echo "${k}k_${c} loaded." >> out_light.txt
 
-        ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out_light.txt
-        ./AUDIT_ft -t li_d_init_table.dat -f 34123 >> out_light.txt
+        ./forensics.sh bt li_d f 25165885 >> out_light.txt
+        ./forensics.sh ft li_d f 34123 >> out_light.txt
         echo -e '\n\n\n' >> out_light.txt
     done
 done
@@ -58,8 +58,8 @@ for k in 8 10 12 14; do
         cp ../server/out_light/5/enc_li_5_${k}k_${c}/* ../server/enc
         echo "${k}k_${c} loaded." >> out_light.txt
 
-        ./AUDIT_bt -t li_d_init_table.dat -f 25165885 >> out_light.txt
-        ./AUDIT_ft -t li_d_init_table.dat -f 34123 >> out_light.txt
+        ./forensics.sh bt li_d f 25165885 >> out_light.txt
+        ./forensics.sh ft li_d f 34123 >> out_light.txt
         echo -e '\n\n\n' >> out_light.txt
     done
 done
@@ -78,7 +78,7 @@ done
 #         cp ../server/out_heavy/d/enc_hv_d_${k}k_${c}/* ../server/enc
 #         echo "${k}k_${c} loaded." >> out_heavy.txt
 
-#         ./AUDIT_ft -t hv_d_init_table.dat -f 34010 >> out_heavy.txt
+#         ./forensics.sh ft hv_d f 34010 >> out_heavy.txt
 #         echo -e '\n\n\n' >> out_heavy.txt
 #     done
 # done
@@ -100,7 +100,7 @@ done
 #         cp ../server/out_heavy/h/enc_hv_h_${k}k_${c}/* ../server/enc
 #         echo "${k}k_${c} loaded." >> out_heavy.txt
 
-#         ./AUDIT_ft -t hv_d_init_table.dat -f 34010 >> out_heavy.txt
+#         ./forensics.sh ft hv_d f 34010 >> out_heavy.txt
 #         echo -e '\n\n\n' >> out_heavy.txt
 #     done
 # done
@@ -122,7 +122,7 @@ done
 #         cp ../server/out_heavy/5/enc_hv_5_${k}k_${c}/* ../server/enc
 #         echo "${k}k_${c} loaded." >> out_heavy.txt
 
-#         ./AUDIT_ft -t hv_d_init_table.dat -f 34010 >> out_heavy.txt
+#         ./forensics.sh ft hv_d f 34010 >> out_heavy.txt
 #         echo -e '\n\n\n' >> out_heavy.txt
 #     done
 # done
@@ -143,7 +143,7 @@ done
 #         cp ../server/out_extreme/d/enc_ex_d_${k}k_${c}/* ../server/enc
 #         echo "${k}k_${c} loaded." >> out_extreme.txt
 
-#         echo '34' | ./AUDIT_bt -t ex_d_init_table.dat -f 25165885 >> out_extreme.txt
+#         echo '34' | ./forensics.sh bt ex_d f 25165885 >> out_extreme.txt
 #         # ./AUDIT_ft -t ex_d_init_table.dat -f 34010 >> out_extreme.txt
 #         echo -e '\n\n\n' >> out_extreme.txt
 #     done
@@ -167,7 +167,7 @@ done
 #         cp ../server/out_extreme/h/enc_ex_h_${k}k_${c}/* ../server/enc
 #         echo "${k}k_${c} loaded." >> out_extreme.txt
 
-#         echo '34' | ./AUDIT_bt -t ex_d_init_table.dat -f 25165885 >> out_extreme.txt
+#         echo '34' | ./forensics.sh bt ex_d f 25165885 >> out_extreme.txt
 #         # ./AUDIT_ft -t ex_d_init_table.dat -f 34010 >> out_extreme.txt
 #         echo -e '\n\n\n' >> out_extreme.txt
 #     done
@@ -191,7 +191,7 @@ done
 #         cp ../server/out_extreme/5/enc_ex_5_${k}k_${c}/* ../server/enc
 #         echo "${k}k_${c} loaded." >> out_extreme.txt
         
-#         echo '34' | ./AUDIT_bt -t ex_d_init_table.dat -f 25165885 >> out_extreme.txt
+#         echo '34' | ./forensics.sh bt ex_d f 25165885 >> out_extreme.txt
 #         # ./AUDIT_ft -t ex_d_init_table.dat -f 34010 >> out_extreme.txt
 #         echo -e '\n\n\n' >> out_extreme.txt
 #     done
