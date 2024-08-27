@@ -6,7 +6,7 @@ FA-SEAL operates in two phases: audit log ingestion and forensic analysis. Durin
 
 This repo contains the source code of implementation of FA-SEAL. It is a client-server architecture where client refers to the secure log server which collects the logs from various log generating devices, encodes and encrypts them and send it to the cloud server, denoted by server. The source code is partly adapted from [this repo](https://github.com/IanVanHoudt/Searchable-Symmetric-Encryption/tree/master). 
 
-The 'client' folder contains the source code for ingestion of logs and performing forensic analysis, along with the scripts required for the evaluation. The folder 'jmap' contains the code to pack and unpack messages between the client and the server. The server-side functions during ingestion and forensic analysis is contained the 'server' directory. The 'tracking' folder contains the core backend code for log analysis, which is responsible to find the dependency relationship between entities (file, process, network sockets) and generate provenance graph out of it. 
+The 'client' folder contains the source code for ingestion of logs. The 'investigator' directory contains the scripts for performing forensic analysis along with the benchmarking scripts required for the evaluation. The folder 'jmap' contains the code to pack and unpack messages between the client and the server. The server-side functions during ingestion and forensic analysis is contained the 'server' directory. The 'tracking' folder contains the core backend code for log analysis, which is responsible to find the dependency relationship between entities (file, process, network sockets) and generate provenance graph out of it. 
 
 ## Environment
 
@@ -71,16 +71,18 @@ Note: -u is for ingesting/updating a log file. For other options, see `python cl
 
 ## Forensic Analysis
 
-Forensic analysis is can either by backtracking or forward tracking. Investigator needs to specify the type of analysis (backtracking or AUDIT_ft), process identifier (pid) or file inode to analyze and the initial database table containing the mapping of pids and inodes to their respective process name and file names respectively.
+Forensic analysis is can either by backtracking or forward tracking. Investigator needs to specify the type of analysis (backtracking or AUDIT_ft), process identifier (pid) or file inode to analyze and the audit log file containing the attack logs.
 
-1. Create a initial database from the log that contains the mapping of pids and inodes to their respective process names and filenames. The following command will create a file named `mot_data_theft.csv_init_table.dat` in `sample_data` directory, which is used for analysis. Note: The table can be generated using `./AUDIT_ft` command as well, and `-p 1` denotes a dummy pid. You just need to run this command once for a log file. 
+1. Create aninitial database from the log file that contains the mapping of pids and inodes to their respective process names and filenames. The following command will create a file named `a1.data_theft.csv_init_table.dat` in `sample_data` directory, which is used for analysis. Note: The table can be generated using `./AUDIT_ft` command as well, and `-p 1` denotes a dummy pid. You just need to run this command once for a log file. 
 ```
-./AUDIT_bt -i sample_data/mot_data_theft.csv -p 1
+cd client/
+./AUDIT_bt -i sample_data/a1.data_theft.csv -p 1
 ```
 
-2. Using the table generated in step 1, perform a forward tracking analysis on a stolen file `salary_sheet.csv (inode: 22550385)`. This will create a graph named `AUDIT_ft.gv`. Use `./AUDIT_bt` for backtracking and `-p` option to analyze pid.
+2. Go to the investigator folder and perform a forward tracking analysis on a stolen file `salary_sheet.csv (inode: 22550385)`. This will create a graph named `AUDIT_ft.gv`. Use `./AUDIT_bt` for backtracking and `-p` option to analyze pid.
 ```
-./AUDIT_ft -t sample_data/mot_data_theft.csv_init_table.dat -f 22550385
+cd ../investigator/
+./forensics.sh ft a1.data_theft.csv f 22550385
 ```
 
 3. Convert the text graph data to a visual form using `graphviz`. Note: Install graphviz with `sudo apt install graphviz`, if not installed.
@@ -90,6 +92,6 @@ dot -T png AUDIT_ft.gv -o output_graphs/graph1.png
 
 4. Now, perform backtracking on the process `scph (pid: 489755)` and generate the visual graph.
 ```
-./AUDIT_bt -t sample_data/mot_data_theft.csv_init_table.dat -p 489755
+./forensics.sh bt a1.data_theft.csv p 489755
 dot -T png AUDIT_bt.gv -o output_graphs/graph2.png
 ```
