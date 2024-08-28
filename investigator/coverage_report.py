@@ -60,12 +60,12 @@ def main(argv):
     graph_nodes = len(graph_pids)+len(graph_inodes)+len(graph_sockets)
     print("Nodes coverage (%): ", graph_nodes/total_nodes*100, "\n")
     
-    print("Hidden processes::")
-    new_list = {}
-    for k,v in pid_list:
-        if k not in graph_pids:
-            new_list.append(v)
-    print(new_list)
+#    print("Hidden processes::")
+#    new_list = {}
+#    for k,v in pid_list:
+#        if k not in graph_pids:
+#            new_list.append(v)
+#    print(new_list)
     
     print("\nEffective uids: ", eid_list)
 
