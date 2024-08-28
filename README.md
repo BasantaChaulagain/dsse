@@ -10,9 +10,9 @@ The 'client' folder contains the source code for ingestion of logs. The 'investi
 
 ## Environment
 
-This system is tested on Ubuntu 20.04.06 and 24.04. The python version is 3.8.10 (pip version 20.0.2) and cpp(g++) version is >=9.4.0. Other python dependencies of the project are written in requirements.txt file. Install all the requirements before running the project.
+This system is tested on Ubuntu 20.04.06 and 24.04. The python version is 3.8.10 (pip version 20.0.2) and cpp(g++) version is 9.4.0. Other python dependencies of the project are written in requirements.txt file. Install all the requirements before running the project.
 
-Audit log data used in the evaluation of this project can be found [here](). We pre-process the raw audit log and convert it to a csv with all the information required for forensic analysis. Each event is represented by a 35-fields csv, the details of which can be found in [tracking/README_CSV.txt](tracking/README_CSV.txt).
+Audit log data used in the evaluation of this project can be found [here](https://outlookuga-my.sharepoint.com/:u:/g/personal/bc67288_uga_edu/EVdHuXtXwclEvuhlXmA8cHwB8NdHkwwk_xIck92h-gviGQ?e=I0C8HI). We pre-process the raw audit log and convert it to a csv with all the information required for forensic analysis. Each event is represented by a 35-fields csv, the details of which can be found in [tracking/README_CSV.txt](tracking/README_CSV.txt).
 
 ## Configuration and Set-up
 
