@@ -1,3 +1,6 @@
+### VM download
+[download link](https://outlookuga-my.sharepoint.com/:u:/g/personal/bc67288_uga_edu/EWD2ghyODu9Gi8LD2R8D83EBapytX1Vy1Btmkhd0SMBCig?e=QJRgjR)
+
 # Overview
 
 FA-SEAL (Forensically Analyzable Symmetric Encryption for Audit Logs) is a novel system that enables forensic anal- ysis directly on encrypted audit logs while exclusively disclosing only cyberattack-relevant events to third-party investigators.
