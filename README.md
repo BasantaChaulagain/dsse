@@ -1,3 +1,6 @@
+### VM download
+[download link](https://outlookuga-my.sharepoint.com/:u:/g/personal/bc67288_uga_edu/EWD2ghyODu9Gi8LD2R8D83EBapytX1Vy1Btmkhd0SMBCig?e=QJRgjR)
+
 # Overview
 
 FA-SEAL (Forensically Analyzable Symmetric Encryption for Audit Logs) is a novel system that enables forensic anal- ysis directly on encrypted audit logs while exclusively disclosing only cyberattack-relevant events to third-party investigators.
@@ -12,7 +15,7 @@ The 'client' folder contains the source code for ingestion of logs. The 'investi
 
 This system is tested on Ubuntu 20.04.06 and 24.04. The python version is 3.8.10 (pip version 20.0.2) and cpp(g++) version is 9.4.0. Other python dependencies of the project are written in requirements.txt file. Install all the requirements before running the project.
 
-Audit log data used in the evaluation of this project can be found [here](). We pre-process the raw audit log and convert it to a csv with all the information required for forensic analysis. Each event is represented by a 35-fields csv, the details of which can be found in [tracking/README_CSV.txt](tracking/README_CSV.txt).
+Audit log data used in the evaluation of this project can be found [here](https://outlookuga-my.sharepoint.com/:u:/g/personal/bc67288_uga_edu/EVdHuXtXwclEvuhlXmA8cHwB8NdHkwwk_xIck92h-gviGQ?e=I0C8HI). We pre-process the raw audit log and convert it to a csv with all the information required for forensic analysis. Each event is represented by a 35-fields csv, the details of which can be found in [tracking/README_CSV.txt](tracking/README_CSV.txt).
 
 ## Configuration and Set-up
 
